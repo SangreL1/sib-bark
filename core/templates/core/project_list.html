@@ -1,0 +1,204 @@
+{% extends 'core/base.html' %}
+{% block title %}Proyectos — SIB Bark{% endblock %}
+
+{% block content %}
+<div class="fade-up">
+
+  <!-- Header -->
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">Órdenes de Compra</h1>
+      <p class="page-sub">{{ total_count }} proyecto{{ total_count|pluralize }} encontrado{{ total_count|pluralize }} · Sistema Integral Bark</p>
+    </div>
+    <a href="{% url 'oc_create' %}" class="btn btn-primary">
+      <i data-lucide="plus" style="width:17px;height:17px;"></i> Nueva Orden de Compra
+    </a>
+  </div>
+
+  <!-- Filters -->
+  <form method="GET" class="filter-bar row g-2 align-items-center mb-4" style="background: var(--bg-2); border: 1px solid var(--border); border-radius: var(--r-md); padding: 16px; margin: 0 0 20px 0;">
+    <div class="col-12 col-lg-3">
+      <div class="filter-group w-100" style="position:relative; display:flex; align-items:center; gap:8px;">
+        <i data-lucide="search" style="width:16px;height:16px;color:var(--txt-3); position:absolute; left:12px;"></i>
+        <input type="text" name="q" value="{{ q }}" placeholder="FMR, OC, cliente, guía…" style="padding-left:36px; width:100%;">
+      </div>
+    </div>
+    <div class="col-12 col-sm-6 col-lg-3">
+      <div class="filter-group w-100" style="display:flex; align-items:center; gap:8px;">
+        <label style="font-size:12px; color:var(--txt-2); white-space:nowrap; margin-bottom:0;">Estado:</label>
+        <select name="estado" style="width:100%;">
+          <option value="">Todos</option>
+          {% for val, label in estados %}
+            <option value="{{ val }}" {% if estado_filter == val %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+    <div class="col-6 col-sm-3 col-lg-auto d-flex">
+      <button type="submit" class="btn btn-ghost btn-sm w-100" style="min-height:38px; border:1px solid var(--border);">
+        <i data-lucide="filter" style="width:14px;height:14px;margin-right:4px;"></i> Filtrar
+      </button>
+    </div>
+    {% if q or estado_filter %}
+      <div class="col-6 col-sm-3 col-lg-auto d-flex">
+        <a href="{% url 'project_list' %}" class="btn btn-ghost btn-sm w-100" style="min-height:38px; border:1px solid var(--border);">
+          <i data-lucide="x" style="width:14px;height:14px;margin-right:4px;"></i> Limpiar
+        </a>
+      </div>
+    {% endif %}
+
+    <!-- Semaphore legend -->
+    <div class="col-12 col-lg-auto ms-lg-auto filter-legend mt-2 mt-lg-0 d-flex flex-wrap align-items-center gap-3">
+      <span style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--txt-2);"><span class="semaforo-dot green"></span> A tiempo</span>
+      <span style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--txt-2);"><span class="semaforo-dot yellow"></span> Próximo</span>
+      <span style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--txt-2);"><span class="semaforo-dot red"></span> Atrasado</span>
+      <span style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--txt-2);"><span class="semaforo-dot grey"></span> Cerrado</span>
+    </div>
+  </form>
+
+  <!-- Table -->
+  <div class="card-flat">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th class="d-none d-md-table-cell">FMR</th>
+            <th>Número OC</th>
+            <th>Cliente</th>
+            <th class="d-none d-lg-table-cell">Descripción</th>
+            <th class="d-none d-md-table-cell" style="text-align:right;">Valor OC</th>
+            <th class="d-none d-md-table-cell" style="text-align:center;">% Entregado</th>
+            <th style="text-align:center;">Plazo 🚦</th>
+            <th style="text-align:center;">Avance 🚦</th>
+            <th style="text-align:center;">Docs 🚦</th>
+            <th>Estado</th>
+            <th class="d-none d-md-table-cell">Fecha Comp.</th>
+            <th style="text-align:center;">Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for oc in page_obj %}
+          <tr>
+            <!-- FMR codes -->
+            <td class="d-none d-md-table-cell">
+              {% for fmr in oc.fmrs.all %}
+                <span class="badge badge-blue" style="margin:1px;">{{ fmr.fmr_code }}</span>
+              {% empty %}
+                <span style="color:var(--txt-3);font-size:12px;">—</span>
+              {% endfor %}
+            </td>
+
+            <!-- OC number -->
+            <td>
+              <a href="{% url 'project_detail' oc.numero_oc %}" style="font-weight:600;font-size:13px;color:var(--txt);">
+                {{ oc.numero_oc|truncatechars:28 }}
+              </a>
+            </td>
+
+            <td style="font-size:13px;">{{ oc.cliente }}</td>
+            <td class="d-none d-lg-table-cell" style="font-size:12px;color:var(--txt-2);max-width:200px;">{{ oc.descripcion|truncatechars:50|default:"—" }}</td>
+
+            <!-- Value -->
+            <td class="d-none d-md-table-cell" style="text-align:right;font-weight:600;font-size:13px;">
+              {% if oc.valor_total %}${{ oc.valor_total|floatformat:0 }}{% else %}—{% endif %}
+            </td>
+
+            <!-- % Delivered with bar -->
+            <td class="d-none d-md-table-cell" style="text-align:center;min-width:100px;">
+              <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
+                {% if oc.estado == 'Facturado' or oc.estado == 'Cerrado' %}
+                  <span style="font-size:12px;font-weight:700;">100%</span>
+                  <div class="progress-wrap" style="width:70px;">
+                    <div class="progress-fill green" style="width:100%;"></div>
+                  </div>
+                {% else %}
+                  <span style="font-size:12px;font-weight:700;">{{ oc.porcentaje_entregado|floatformat:0 }}%</span>
+                  <div class="progress-wrap" style="width:70px;">
+                    <div class="progress-fill {{ oc.semaforo_avance }}" style="width:{{ oc.porcentaje_entregado }}%;"></div>
+                  </div>
+                {% endif %}
+              </div>
+            </td>
+
+            <!-- Semaphore: Plazo -->
+            <td style="text-align:center;">
+              <div class="semaforo-cell {{ oc.semaforo_plazo }}">
+                <span class="semaforo-dot {{ oc.semaforo_plazo }}"></span>
+                {% if oc.dias_restantes_calculado is not None %}
+                  {% if oc.semaforo_plazo == 'grey' %}—
+                  {% elif oc.dias_restantes_calculado < 0 %}{{ oc.dias_restantes_calculado }}d
+                  {% else %}+{{ oc.dias_restantes_calculado }}d
+                  {% endif %}
+                {% else %}—{% endif %}
+              </div>
+            </td>
+
+            <!-- Semaphore: Avance -->
+            <td style="text-align:center;">
+              <div class="semaforo-cell {{ oc.semaforo_avance }}">
+                <span class="semaforo-dot {{ oc.semaforo_avance }}"></span>
+              </div>
+            </td>
+
+            <!-- Semaphore: Docs -->
+            <td style="text-align:center;">
+              <div class="semaforo-cell {{ oc.semaforo_docs }}">
+                <span class="semaforo-dot {{ oc.semaforo_docs }}"></span>
+              </div>
+            </td>
+
+            <!-- Estado badge -->
+            <td>
+              <span class="badge {% if oc.estado == 'Facturado' or oc.estado == 'Cerrado' %}badge-success{% elif oc.estado == 'En proceso' %}badge-warning{% elif oc.estado == 'Cancelado' %}badge-danger{% else %}badge-blue{% endif %}">
+                {{ oc.estado }}
+              </span>
+            </td>
+
+            <td class="d-none d-md-table-cell" style="font-size:12px;color:var(--txt-2);">{{ oc.fecha_compromiso|date:"d/m/Y"|default:"—" }}</td>
+
+            <!-- Actions -->
+            <td style="text-align:center;">
+              <div style="display:flex;gap:6px;justify-content:center;">
+                <a href="{% url 'project_detail' oc.numero_oc %}" class="btn btn-ghost btn-sm" title="Ver ficha" style="padding:0 8px;">
+                  <i data-lucide="eye" style="width:14px;height:14px;"></i>
+                </a>
+                <a href="{% url 'oc_edit' oc.numero_oc %}" class="btn btn-ghost btn-sm" title="Editar" style="padding:0 8px;">
+                  <i data-lucide="pencil" style="width:14px;height:14px;"></i>
+                </a>
+              </div>
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="12" style="text-align:center;padding:48px;color:var(--txt-3);">
+              <i data-lucide="inbox" style="width:32px;height:32px;margin-bottom:10px;display:block;margin-left:auto;margin-right:auto;"></i>
+              No se encontraron proyectos con los filtros aplicados.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Pagination -->
+    {% if page_obj.has_other_pages %}
+    <div class="pagination">
+      {% if page_obj.has_previous %}
+        <a href="?page={{ page_obj.previous_page_number }}&q={{ q }}&estado={{ estado_filter }}" class="page-link">← Anterior</a>
+      {% endif %}
+      {% for num in page_obj.paginator.page_range %}
+        {% if page_obj.number == num %}
+          <span class="page-link active">{{ num }}</span>
+        {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+          <a href="?page={{ num }}&q={{ q }}&estado={{ estado_filter }}" class="page-link">{{ num }}</a>
+        {% endif %}
+      {% endfor %}
+      {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}&q={{ q }}&estado={{ estado_filter }}" class="page-link">Siguiente →</a>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}

@@ -1,0 +1,205 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es" data-bs-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}SIB Bark{% endblock %}</title>
+  <!-- Bootstrap 5 CSS CDN -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+  <link rel="stylesheet" href="{% static 'core/css/style.css' %}">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  
+  <style>
+    /* Estilos correctivos para que Bootstrap 5 de CDN no colisione con el diseño original */
+    body {
+      background-color: var(--bg) !important;
+      color: var(--txt) !important;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      color: var(--txt) !important;
+    }
+    .form-label, label {
+      color: var(--txt-2) !important;
+    }
+    header {
+      background: rgba(8,12,20,.85) !important;
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border);
+    }
+    .navbar-toggler {
+      border: 1px solid var(--border);
+      padding: 6px 10px;
+    }
+    .navbar-toggler:focus {
+      box-shadow: 0 0 0 3px rgba(59,130,246,.25);
+    }
+    .navbar-toggler-icon {
+      filter: invert(1);
+    }
+    /* Estilo del input del buscador de la navbar */
+    .header-search input {
+      width: 100%;
+      background: rgba(255,255,255,.05);
+      border: 1px solid var(--border);
+      border-radius: 30px;
+      padding: 9px 16px 9px 40px;
+      color: var(--txt);
+      font-size: 13.5px;
+      transition: all .25s;
+    }
+    .header-search input:focus {
+      outline: none;
+      border-color: var(--blue);
+      background: rgba(59,130,246,.07);
+      box-shadow: 0 0 0 3px rgba(59,130,246,.15);
+    }
+    .header-search .si {
+      position: absolute;
+      left: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--txt-3);
+      width: 16px;
+      height: 16px;
+    }
+    /* Ajustes responsivos para links de navegación en barra colapsada */
+    @media (max-width: 991.98px) {
+      .navbar-nav {
+        width: 100%;
+        padding-top: 14px;
+        gap: 8px;
+        align-items: stretch !important;
+      }
+      .navbar-nav li {
+        width: 100%;
+      }
+      .navbar-nav li a {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 14px !important;
+        background: rgba(255,255,255,.03);
+        border-radius: 8px;
+        color: var(--txt-2) !important;
+      }
+      .navbar-nav li a.active, .navbar-nav li a:hover {
+        background: rgba(255,255,255,.07) !important;
+        color: var(--txt) !important;
+      }
+      .nav-user {
+        margin-left: 0 !important;
+        margin-top: 12px;
+        padding-top: 12px;
+        border-top: 1px solid var(--border);
+        width: 100%;
+        justify-content: space-between;
+      }
+      .header-search {
+        margin-top: 10px;
+        max-width: 100% !important;
+        width: 100% !important;
+      }
+    }
+    
+    /* Touch target mínimo de 44px */
+    .btn, .page-link, .nav-link, table td a.btn, .btn-logout {
+      min-height: 44px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .btn-sm {
+      min-height: 36px; /* Permitido para botones compactos de UI */
+    }
+  </style>
+</head>
+<body>
+
+<header class="navbar navbar-expand-lg navbar-dark py-2 sticky-top">
+  <div class="container">
+    <!-- Logo -->
+    <a href="{% url 'project_list' %}" class="navbar-brand d-flex align-items-center gap-2 me-4" style="padding: 0;">
+      <span class="logo">BARK</span>
+      <span class="logo-badge">SIB v2</span>
+    </a>
+
+    <!-- Hamburger menu toggler button for Bootstrap -->
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+
+    <!-- Collapsible Menu Wrapper -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      
+      <!-- Search Form inside Navbar -->
+      <form action="{% url 'search' %}" method="GET" class="header-search my-2 my-lg-0 me-auto position-relative" style="max-width: 420px; width: 100%;">
+        <i data-lucide="search" class="si"></i>
+        <input type="text" name="q" placeholder="Buscar FMR, OC, cliente, guía, factura…" value="{{ q|default:'' }}" autocomplete="off">
+      </form>
+
+      <!-- Navigation Links -->
+      <ul class="navbar-nav align-items-center gap-1">
+        <li class="nav-item">
+          <a href="{% url 'project_list' %}" class="nav-link {% if request.resolver_match.url_name == 'project_list' %}active{% endif %}">
+            <i data-lucide="layout-list" style="width:15px;height:15px;"></i> Proyectos
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="{% url 'oc_create' %}" class="nav-link {% if request.resolver_match.url_name == 'oc_create' %}active{% endif %}">
+            <i data-lucide="plus-circle" style="width:15px;height:15px;"></i> Nueva OC
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="{% url 'dashboard' %}" class="nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
+            <i data-lucide="bar-chart-2" style="width:15px;height:15px;"></i> KPIs
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="{% url 'cost_center_overview' %}" class="nav-link {% if request.resolver_match.url_name == 'cost_center_overview' %}active{% endif %}">
+            <i data-lucide="receipt" style="width:15px;height:15px;"></i> Costos
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="{% url 'import_data' %}" class="nav-link {% if request.resolver_match.url_name == 'import_data' %}active{% endif %}">
+            <i data-lucide="upload-cloud" style="width:15px;height:15px;"></i> Importar
+          </a>
+        </li>
+      </ul>
+
+      <!-- User Controls -->
+      <div class="nav-user ms-lg-3 d-flex align-items-center gap-2">
+        <span class="d-none d-lg-inline-block"><i data-lucide="user" style="width:15px;height:15px;color:var(--txt-2);"></i></span>
+        <strong style="font-size: 13px;">{{ request.user.username }}</strong>
+        <a href="{% url 'logout' %}" class="btn btn-sm btn-logout d-inline-flex align-items-center justify-content-center">Salir</a>
+      </div>
+      
+    </div>
+  </div>
+</header>
+
+<main class="container" style="margin-top:28px; padding-bottom:60px;">
+
+  {% if messages %}
+    <div style="margin-bottom:20px;">
+      {% for msg in messages %}
+        <div class="msg {{ msg.tags }} fade-up">
+          {% if msg.tags == 'success' %}<i data-lucide="check-circle" style="width:18px;height:18px;flex-shrink:0;"></i>
+          {% else %}<i data-lucide="alert-triangle" style="width:18px;height:18px;flex-shrink:0;"></i>{% endif %}
+          <span>{{ msg }}</span>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  {% block content %}{% endblock %}
+</main>
+
+<!-- Bootstrap 5 Bundle JS CDN -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+<script>lucide.createIcons();</script>
+{% block extra_js %}{% endblock %}
+</body>
+</html>
+

@@ -1,0 +1,160 @@
+{% extends 'core/base.html' %}
+{% block title %}Centro de Costos Global - SIB Bark{% endblock %}
+
+{% block content %}
+<div class="fade-up">
+    
+    <!-- Header -->
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">Centro de Costos</h1>
+            <p class="page-sub">Análisis de rentabilidad financiera y control de presupuestos por órdenes de compra.</p>
+        </div>
+    </div>
+
+    <!-- Financial Summary Cards -->
+    <div class="stat-grid" style="margin-bottom: 28px;">
+        
+        <!-- Total Budget -->
+        <div class="stat-card">
+            <div class="stat-label">
+                <span>Ingreso Programado (OCs)</span>
+                <div class="stat-icon" style="color: var(--blue);"><i data-lucide="wallet" style="width:16px;height:16px;"></i></div>
+            </div>
+            <div>
+                <div class="stat-value">${{ total_budget|floatformat:0 }}</div>
+                <div class="stat-sub">Suma del presupuesto de todas las OCs</div>
+            </div>
+        </div>
+
+        <!-- Total Expenses -->
+        <div class="stat-card">
+            <div class="stat-label">
+                <span>Costos Totales Reales</span>
+                <div class="stat-icon" style="color: var(--amber);"><i data-lucide="receipt" style="width:16px;height:16px;"></i></div>
+            </div>
+            <div>
+                <div class="stat-value" style="color: var(--amber);">${{ total_expenses|floatformat:0 }}</div>
+                <div class="stat-sub">Suma de todos los gastos registrados</div>
+            </div>
+        </div>
+
+        <!-- Overall Profit Margin -->
+        <div class="stat-card">
+            <div class="stat-label">
+                <span>Margen Financiero Acumulado</span>
+                <div class="stat-icon" style="color: var(--green);"><i data-lucide="trending-up" style="width:16px;height:16px;"></i></div>
+            </div>
+            <div>
+                <div class="stat-value" style="color: {% if overall_margin < 0 %}var(--rose){% else %}var(--green){% endif %};">
+                    ${{ overall_margin|floatformat:0 }}
+                </div>
+                <div class="stat-sub">Rentabilidad global del {{ overall_margin_pct }}%</div>
+            </div>
+        </div>
+
+        <!-- Margin Percentage (Extra card to fill grid) -->
+        <div class="stat-card">
+            <div class="stat-label">
+                <span>Eficiencia Presupuestaria</span>
+                <div class="stat-icon" style="color: var(--teal);"><i data-lucide="percent" style="width:16px;height:16px;"></i></div>
+            </div>
+            <div>
+                <div class="stat-value" style="color: var(--teal);">
+                    {{ overall_margin_pct }}%
+                </div>
+                <div class="stat-sub">Margen de rentabilidad global</div>
+            </div>
+        </div>
+
+    </div>
+
+    <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 24px; align-items: start;">
+        
+        <!-- Project Margins Table -->
+        <div class="card">
+            <h3 style="margin-bottom: 20px; font-size: 16px; font-weight: 700; display: flex; align-items: center; gap: 8px;">
+                <i data-lucide="file-spreadsheet" style="color: var(--blue); width: 18px; height: 18px;"></i>
+                Control de Rentabilidad por Proyecto
+            </h3>
+            
+            {% if summary_list %}
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Orden de Compra</th>
+                                <th style="text-align:right;">Presupuesto (OC)</th>
+                                <th style="text-align:right;">Gastos</th>
+                                <th style="text-align:right;">Margen ($)</th>
+                                <th style="text-align:center;">Margen (%)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in summary_list %}
+                            <tr>
+                                <td>
+                                    <a href="{% url 'project_detail' item.project.numero_oc %}" style="font-weight: 600; color: var(--txt);">
+                                        {{ item.project.numero_oc|truncatechars:35 }}
+                                    </a>
+                                    <div style="font-size: 11px; color: var(--txt-2); margin-top: 2px;">{{ item.project.cliente }}</div>
+                                </td>
+                                <td style="text-align:right; font-weight:600;">${{ item.budget|floatformat:0 }}</td>
+                                <td style="text-align:right; color: var(--amber); font-weight: 500;">${{ item.expenses|floatformat:0 }}</td>
+                                <td style="text-align:right; font-weight: 700; color: {% if item.margin < 0 %}var(--rose){% else %}var(--green){% endif %};">
+                                    ${{ item.margin|floatformat:0 }}
+                                </td>
+                                <td style="text-align:center;">
+                                    <span class="badge {% if item.margin_pct < 10 %}badge-danger{% elif item.margin_pct < 30 %}badge-warning{% else %}badge-success{% endif %}" style="min-width: 60px; justify-content: center;">
+                                        {{ item.margin_pct|floatformat:0 }}%
+                                    </span>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <p style="color: var(--txt-3); font-size: 14px; text-align: center; padding: 40px;">No hay proyectos disponibles.</p>
+            {% endif %}
+        </div>
+
+        <!-- Cost Category Summary -->
+        <div class="card">
+            <h3 style="margin-bottom: 20px; font-size: 16px; font-weight: 700; display: flex; align-items: center; gap: 8px;">
+                <i data-lucide="pie-chart" style="color: var(--teal); width: 18px; height: 18px;"></i>
+                Desglose por Categorías
+            </h3>
+            
+            {% if categories_breakdown %}
+                <div style="display: flex; flex-direction: column; gap: 12px;">
+                    {% for cat in categories_breakdown %}
+                        <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border); padding: 14px 16px; border-radius: var(--r-sm);">
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 14px;">
+                                <span style="font-weight: 600; color: var(--txt);">{{ cat.categoria }}</span>
+                                <span style="font-weight: 700; color: var(--amber);">${{ cat.total|floatformat:0 }}</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; font-size: 12px; color: var(--txt-2);">
+                                <span>{{ cat.count }} transacciones</span>
+                                <span>
+                                    {% if total_expenses > 0 %}
+                                        {% widthratio cat.total total_expenses 100 %}% del costo
+                                    {% else %}
+                                        0%
+                                    {% endif %}
+                                </span>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div style="display: flex; align-items: center; justify-content: center; min-height: 200px; color: var(--txt-3); font-size: 14px;">
+                    No hay gastos cargados. Registra gastos en las fichas de proyecto.
+                </div>
+            {% endif %}
+        </div>
+
+    </div>
+
+</div>
+{% endblock %}

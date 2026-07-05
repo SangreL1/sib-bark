@@ -1,0 +1,221 @@
+{% extends 'core/base.html' %}
+{% block title %}{% if is_create %}Nueva OC{% else %}Editar OC{% endif %} — SIB Bark{% endblock %}
+
+{% block content %}
+<div class="fade-up" style="max-width:900px;margin:0 auto;">
+
+  <!-- Back -->
+  <div style="margin-bottom:20px;">
+    <a href="{% url 'project_list' %}" class="btn btn-ghost btn-sm">
+      <i data-lucide="arrow-left" style="width:15px;height:15px;"></i> Volver a Proyectos
+    </a>
+  </div>
+
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">{{ titulo }}</h1>
+      <p class="page-sub">{% if is_create %}Completa los datos para registrar una nueva OC en el sistema.{% else %}Actualiza los campos que necesites modificar.{% endif %}</p>
+    </div>
+  </div>
+
+  <form method="POST" class="card-flat" enctype="multipart/form-data">
+    {% csrf_token %}
+
+    <!-- 1. Identificación -->
+    <div class="form-section">
+      <div class="form-section-title">
+        <i data-lucide="file-text" style="width:15px;height:15px;color:var(--blue);"></i> Identificación
+      </div>
+      {% if is_create %}
+        <div class="form-group">
+          <label class="form-label">{{ form.numero_oc.label }}</label>
+          {{ form.numero_oc }}
+          {% if form.numero_oc.errors %}<p style="color:var(--rose);font-size:12px;margin-top:4px;">{{ form.numero_oc.errors.0 }}</p>{% endif %}
+        </div>
+      {% else %}
+        <div class="form-group">
+          <label class="form-label">Número OC (no editable)</label>
+          <input type="text" class="form-control" value="{{ project.numero_oc }}" readonly style="opacity:.5;cursor:not-allowed;">
+        </div>
+      {% endif %}
+      <div class="form-grid-2">
+        <div class="form-group">
+          <label class="form-label">{{ form.cliente.label }}</label>
+          {{ form.cliente }}
+        </div>
+        <div class="form-group">
+          <label class="form-label">{{ form.proyecto.label }}</label>
+          {{ form.proyecto }}
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">{{ form.descripcion.label }}</label>
+        {{ form.descripcion }}
+      </div>
+    </div>
+
+    <!-- 2. Financiero y Plazos -->
+    <div class="form-section">
+      <div class="form-section-title">
+        <i data-lucide="calendar" style="width:15px;height:15px;color:var(--amber);"></i> Financiero y Plazos
+      </div>
+      <div class="form-grid-3">
+        <div class="form-group">
+          <label class="form-label">{{ form.valor_total.label }}</label>
+          {{ form.valor_total }}
+        </div>
+        <div class="form-group">
+          <label class="form-label">{{ form.fecha_oc.label }}</label>
+          {{ form.fecha_oc }}
+        </div>
+        <div class="form-group">
+          <label class="form-label">{{ form.fecha_compromiso.label }}</label>
+          {{ form.fecha_compromiso }}
+        </div>
+        <div class="form-group">
+          <label class="form-label">{{ form.tiempo_fabricacion.label }}</label>
+          {{ form.tiempo_fabricacion }}
+        </div>
+        <div class="form-group">
+          <label class="form-label">{{ form.estado.label }}</label>
+          {{ form.estado }}
+        </div>
+        <div class="form-group">
+          <label class="form-label">{{ form.prioridad.label }}</label>
+          {{ form.prioridad }}
+        </div>
+      </div>
+      <div class="form-grid-3">
+        <div class="form-group">
+          <label class="form-label">{{ form.factura_resumen.label }}</label>
+          {{ form.factura_resumen }}
+        </div>
+        <div class="form-group">
+          <label class="form-label">{{ form.fecha_factura.label }}</label>
+          {{ form.fecha_factura }}
+        </div>
+        <div class="form-group">
+          <label class="form-label">{{ form.guia_despacho_resumen.label }}</label>
+          {{ form.guia_despacho_resumen }}
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">{{ form.observaciones.label }}</label>
+        {{ form.observaciones }}
+      </div>
+    </div>
+
+    <!-- 3. Documentos (links y archivos) -->
+    <div class="form-section">
+      <div class="form-section-title">
+        <i data-lucide="folder-open" style="width:15px;height:15px;color:var(--purple);"></i> Gestión Documental (Links y Archivos Físicos)
+      </div>
+      <p style="font-size:13px;color:var(--txt-2);margin-bottom:16px;">Puede adjuntar enlaces a la nube y subir archivos físicos para respaldar cada ítem.</p>
+      
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+        
+        <!-- OC -->
+        <div style="background:rgba(255,255,255,.01);border:1px solid var(--border);border-radius:8px;padding:16px;">
+          <h4 style="font-size:12px;font-weight:700;color:var(--txt);margin-bottom:12px;display:flex;align-items:center;gap:6px;">
+            📄 Orden de Compra (OC)
+          </h4>
+          <div class="form-group">
+            <label class="form-label" style="font-size:10px;">Link Drive/Nube</label>
+            {{ form.oc_link }}
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label class="form-label" style="font-size:10px;">Archivo Físico (PDF)</label>
+            {{ form.oc_file }}
+          </div>
+        </div>
+
+        <!-- Planos -->
+        <div style="background:rgba(255,255,255,.01);border:1px solid var(--border);border-radius:8px;padding:16px;">
+          <h4 style="font-size:12px;font-weight:700;color:var(--txt);margin-bottom:12px;display:flex;align-items:center;gap:6px;">
+            📐 Planos de Referencia
+          </h4>
+          <div class="form-group">
+            <label class="form-label" style="font-size:10px;">Link Drive/Nube</label>
+            {{ form.plano_link }}
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label class="form-label" style="font-size:10px;">Archivo Físico (PDF/DWG)</label>
+            {{ form.plano_file }}
+          </div>
+        </div>
+
+        <!-- Cotización -->
+        <div style="background:rgba(255,255,255,.01);border:1px solid var(--border);border-radius:8px;padding:16px;">
+          <h4 style="font-size:12px;font-weight:700;color:var(--txt);margin-bottom:12px;display:flex;align-items:center;gap:6px;">
+            💰 Cotización Inicial
+          </h4>
+          <div class="form-group">
+            <label class="form-label" style="font-size:10px;">Link Drive/Nube</label>
+            {{ form.cotizacion_link }}
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label class="form-label" style="font-size:10px;">Archivo Físico (PDF)</label>
+            {{ form.cotizacion_file }}
+          </div>
+        </div>
+
+        <!-- Excel -->
+        <div style="background:rgba(255,255,255,.01);border:1px solid var(--border);border-radius:8px;padding:16px;">
+          <h4 style="font-size:12px;font-weight:700;color:var(--txt);margin-bottom:12px;display:flex;align-items:center;gap:6px;">
+            📊 Planilla Excel de Control
+          </h4>
+          <div class="form-group">
+            <label class="form-label" style="font-size:10px;">Link Drive/Nube</label>
+            {{ form.excel_link }}
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label class="form-label" style="font-size:10px;">Archivo Físico (.xlsx, .xls)</label>
+            {{ form.excel_file }}
+          </div>
+        </div>
+
+        <!-- Dossier -->
+        <div style="background:rgba(255,255,255,.01);border:1px solid var(--border);border-radius:8px;padding:16px;">
+          <h4 style="font-size:12px;font-weight:700;color:var(--txt);margin-bottom:12px;display:flex;align-items:center;gap:6px;">
+            ✅ Dossier de Calidad
+          </h4>
+          <div class="form-group">
+            <label class="form-label" style="font-size:10px;">Link Drive/Nube</label>
+            {{ form.dossier_link }}
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label class="form-label" style="font-size:10px;">Archivo Físico (PDF)</label>
+            {{ form.dossier_file }}
+          </div>
+        </div>
+
+        <!-- FMR -->
+        <div style="background:rgba(255,255,255,.01);border:1px solid var(--border);border-radius:8px;padding:16px;">
+          <h4 style="font-size:12px;font-weight:700;color:var(--txt);margin-bottom:12px;display:flex;align-items:center;gap:6px;">
+            📁 Registro/FMR Adjunto
+          </h4>
+          <div class="form-group">
+            <label class="form-label" style="font-size:10px;">Link Drive/Nube</label>
+            {{ form.fmr_link }}
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label class="form-label" style="font-size:10px;">Archivo Físico (PDF)</label>
+            {{ form.fmr_file }}
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Submit -->
+    <div style="display:flex;gap:12px;justify-content:flex-end;padding-top:10px;border-top:1px solid var(--border);">
+      <a href="{% url 'project_list' %}" class="btn btn-ghost">Cancelar</a>
+      <button type="submit" class="btn btn-primary btn-lg">
+        <i data-lucide="save" style="width:18px;height:18px;"></i>
+        {% if is_create %}Crear Orden de Compra{% else %}Guardar Cambios{% endif %}
+      </button>
+    </div>
+  </form>
+
+</div>
+{% endblock %}

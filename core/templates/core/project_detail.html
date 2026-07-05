@@ -1,0 +1,1031 @@
+{% extends 'core/base.html' %}
+{% block title %}OC {{ project.numero_oc|truncatechars:30 }} — SIB Bark{% endblock %}
+
+{% block content %}
+<div class="fade-up">
+
+  <!-- Back + Actions -->
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+    <a href="{% url 'project_list' %}" class="btn btn-ghost btn-sm">
+      <i data-lucide="arrow-left" style="width:15px;height:15px;"></i> Volver
+    </a>
+    <a href="{% url 'oc_edit' project.numero_oc %}" class="btn btn-ghost btn-sm">
+      <i data-lucide="pencil" style="width:14px;height:14px;"></i> Editar OC
+    </a>
+  </div>
+
+  <!-- Project Title -->
+  <div style="margin-bottom:24px;">
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:8px;">
+      <span class="badge badge-blue" style="font-size:12px;padding:5px 12px;">
+        {% for fmr in fmrs %}FMR {{ fmr.fmr_code }}{% if not forloop.last %}, {% endif %}{% empty %}Sin FMR{% endfor %}
+      </span>
+      <span class="badge {% if project.estado == 'Facturado' or project.estado == 'Cerrado' %}badge-success{% elif project.estado == 'En proceso' %}badge-warning{% elif project.estado == 'Cancelado' %}badge-danger{% else %}badge-blue{% endif %}">
+        {{ project.estado }}
+      </span>
+      {% if project.prioridad %}
+        <span class="badge {% if 'URGENTE' in project.prioridad|upper %}badge-danger{% else %}badge-grey{% endif %}">{{ project.prioridad }}</span>
+      {% endif %}
+    </div>
+    <h1 style="font-size:22px;font-weight:800;line-height:1.3;">{{ project.numero_oc }}</h1>
+    <p style="color:var(--txt-2);margin-top:4px;font-size:14px;">
+      <strong style="color:var(--txt);">{{ project.cliente }}</strong>
+      {% if project.proyecto %} · {{ project.proyecto }}{% endif %}
+    </p>
+  </div>
+
+  <!-- 3 Semaphores row -->
+  <div class="semaforos-container">
+    <div class="semaforo-large {{ project.semaforo_plazo }}">
+      <span class="semaforo-dot {{ project.semaforo_plazo }}"></span>
+      <div>
+        <div style="font-size:11px;opacity:.7;margin-bottom:2px;">PLAZO DE ENTREGA</div>
+        <div>
+          {% if dias_restantes is not None %}
+            {% if dias_restantes < 0 %}Atrasado {{ dias_restantes|stringformat:"d"|slice:"1:" }} días
+            {% elif dias_restantes == 0 %}Vence hoy
+            {% else %}{{ dias_restantes }} días restantes
+            {% endif %}
+          {% else %}Sin fecha compromiso{% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="semaforo-large {{ project.semaforo_avance }}">
+      <span class="semaforo-dot {{ project.semaforo_avance }}"></span>
+      <div style="width:100%;">
+        <div style="font-size:11px;opacity:.7;margin-bottom:4px;">AVANCE DE ENTREGA</div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div class="progress-wrap" style="flex:1;">
+            <div class="progress-fill {{ project.semaforo_avance }}" style="width:{{ project.porcentaje_entregado }}%;"></div>
+          </div>
+          <span style="font-weight:800;font-size:15px;">{{ project.porcentaje_entregado|floatformat:0 }}%</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="semaforo-large {{ project.semaforo_docs }}">
+      <span class="semaforo-dot {{ project.semaforo_docs }}"></span>
+      <div>
+        <div style="font-size:11px;opacity:.7;margin-bottom:2px;">DOCUMENTOS</div>
+        <div>
+          {% if project.semaforo_docs == 'green' %}Completo (OC + Plano + Registro)
+          {% elif project.semaforo_docs == 'yellow' %}Parcial — faltan documentos
+          {% else %}Sin documentos cargados{% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main 2-column grid -->
+  <div class="project-detail-layout">
+
+    <!-- ════ LEFT COLUMN ════ -->
+    <div style="display:flex;flex-direction:column;gap:24px;">
+
+      <!-- General Info -->
+      <div class="card">
+        <h3 style="font-size:15px;font-weight:700;margin-bottom:18px;display:flex;align-items:center;gap:8px;">
+          <i data-lucide="info" style="width:16px;height:16px;color:var(--blue);"></i> Información General
+        </h3>
+        <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 g-2 mb-3">
+          <div class="col">
+            <div style="background:rgba(255,255,255,.03);border:1px solid var(--border);padding:12px;border-radius:8px;height:100%;">
+              <div style="font-size:10px;color:var(--txt-2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;">Fecha OC</div>
+              <div style="font-weight:600;">{{ project.fecha_oc|date:"d/m/Y"|default:"—" }}</div>
+            </div>
+          </div>
+          <div class="col">
+            <div style="background:rgba(255,255,255,.03);border:1px solid var(--border);padding:12px;border-radius:8px;height:100%;">
+              <div style="font-size:10px;color:var(--txt-2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;">Fecha Compromiso</div>
+              <div style="font-weight:600;">{{ project.fecha_compromiso|date:"d/m/Y"|default:"—" }}</div>
+            </div>
+          </div>
+          <div class="col">
+            <div style="background:rgba(255,255,255,.03);border:1px solid var(--border);padding:12px;border-radius:8px;height:100%;">
+              <div style="font-size:10px;color:var(--txt-2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;">Fab. (días hábiles)</div>
+              <div style="font-weight:600;">{{ project.tiempo_fabricacion|default:"—" }}</div>
+            </div>
+          </div>
+          <div class="col">
+            <div style="background:rgba(255,255,255,.03);border:1px solid var(--border);padding:12px;border-radius:8px;height:100%;">
+              <div style="font-size:10px;color:var(--txt-2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;">Valor OC (sin IVA)</div>
+              <div style="font-weight:700;color:var(--green);">${{ project.valor_total|floatformat:0|default:"—" }}</div>
+            </div>
+          </div>
+          <div class="col">
+            <div style="background:rgba(255,255,255,.03);border:1px solid var(--border);padding:12px;border-radius:8px;height:100%;">
+              <div style="font-size:10px;color:var(--txt-2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;">Factura</div>
+              <div style="font-weight:600;">{{ project.factura_resumen|default:"—" }}</div>
+            </div>
+          </div>
+          <div class="col">
+            <div style="background:rgba(255,255,255,.03);border:1px solid var(--border);padding:12px;border-radius:8px;height:100%;">
+              <div style="font-size:10px;color:var(--txt-2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;">Fecha Factura</div>
+              <div style="font-weight:600;">{{ project.fecha_factura|date:"d/m/Y"|default:"—" }}</div>
+            </div>
+          </div>
+        </div>
+        {% if project.descripcion %}
+          <div style="background:rgba(0,0,0,.2);border:1px solid var(--border);padding:14px;border-radius:8px;font-size:14px;color:var(--txt-2);line-height:1.6;">
+            {{ project.descripcion }}
+          </div>
+        {% endif %}
+      </div>
+
+      <!-- Delivery History -->
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+          <h3 style="font-size:15px;font-weight:700;display:flex;align-items:center;gap:8px;">
+            <i data-lucide="truck" style="width:16px;height:16px;color:var(--green);"></i>
+            Despachos Parciales ({{ deliveries.count }})
+          </h3>
+        </div>
+
+        {% if deliveries %}
+          {% for d in deliveries %}
+          <!-- Despacho Card -->
+          <div style="border:1px solid var(--border);border-radius:10px;margin-bottom:16px;overflow:hidden;">
+            <!-- Header del despacho -->
+            <div style="background:rgba(255,255,255,.03);padding:12px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+              <span style="font-weight:700;color:var(--blue);font-size:14px;">
+                <i data-lucide="truck" style="width:14px;height:14px;vertical-align:middle;margin-right:4px;"></i>
+                Guía {{ d.guia_despacho|default:"S/N" }}
+              </span>
+              <span style="font-size:12px;color:var(--txt-2);">{{ d.fecha_entrega|date:"d/m/Y"|default:"—" }}</span>
+              <span class="badge {% if d.estado == 'COMPLETA' %}badge-success{% elif d.estado == 'FACTURADO' %}badge-blue{% else %}badge-warning{% endif %}" style="font-size:10px;">
+                {{ d.get_estado_display }}
+              </span>
+              {% if d.guia_file %}
+                <a href="{{ d.guia_file.url }}" target="_blank" class="btn btn-ghost btn-sm" style="font-size:11px;padding:3px 8px;margin-left:auto;">
+                  <i data-lucide="download" style="width:12px;height:12px;"></i> PDF Guía
+                </a>
+              {% endif %}
+              {% if d.observaciones %}
+                <span style="font-size:11px;color:var(--txt-3);font-style:italic;">{{ d.observaciones }}</span>
+              {% endif %}
+            </div>
+
+            <!-- Packing List del despacho -->
+            <div style="padding:12px 16px;">
+              {% if d.packing_list_items.all %}
+                <div class="table-wrap" style="margin-bottom:14px;">
+                  <table style="font-size:12px;">
+                    <thead>
+                      <tr>
+                        <th>Ítem OC</th>
+                        <th style="text-align:center;">Cant.</th>
+                        <th>Bulto/Pallet</th>
+                        <th style="text-align:center;">Largo (m)</th>
+                        <th style="text-align:center;">Ancho (m)</th>
+                        <th style="text-align:center;">Alto (m)</th>
+                        <th style="text-align:center;">Peso (kg)</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {% for pi in d.packing_list_items.all %}
+                      <tr>
+                        <td>
+                          <span style="font-weight:600;">{{ pi.item_oc.linea }}</span>
+                          — {{ pi.item_oc.descripcion|truncatechars:40 }}
+                          {% if pi.item_oc.codigo %}<span style="color:var(--txt-3);font-size:11px;"> ({{ pi.item_oc.codigo }})</span>{% endif %}
+                        </td>
+                        <td style="text-align:center;font-weight:700;color:var(--green);">{{ pi.cantidad }}</td>
+                        <td>{{ pi.numero_bulto|default:"—" }}</td>
+                        <td style="text-align:center;">{{ pi.largo_mt|default:"—" }}</td>
+                        <td style="text-align:center;">{{ pi.ancho_mt|default:"—" }}</td>
+                        <td style="text-align:center;">{{ pi.alto_mt|default:"—" }}</td>
+                        <td style="text-align:center;">{{ pi.peso_kg|default:"—" }}</td>
+                        <td>
+                          <a href="{% url 'delete_packing_item' project.numero_oc pi.id %}"
+                             onclick="return confirm('¿Eliminar este ítem del packing list?')"
+                             class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 6px;color:var(--rose);border-color:rgba(244,63,94,.2);">
+                            <i data-lucide="trash-2" style="width:11px;height:11px;"></i>
+                          </a>
+                        </td>
+                      </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
+              {% else %}
+                <p style="font-size:12px;color:var(--txt-3);margin-bottom:10px;font-style:italic;">Sin ítems en el Packing List de este despacho.</p>
+              {% endif %}
+
+              <!-- Formulario inline: añadir ítem al Packing List -->
+              {% if items %}
+              <details style="border-top:1px dashed var(--border);padding-top:10px;margin-top:2px;">
+                <summary style="cursor:pointer;font-size:12px;font-weight:700;color:var(--blue);list-style:none;display:flex;align-items:center;gap:6px;">
+                  <i data-lucide="plus-circle" style="width:13px;height:13px;"></i> Añadir ítem al Packing List
+                </summary>
+                <form action="{% url 'add_packing_item' project.numero_oc d.id %}" method="POST" style="margin-top:12px;">
+                  {% csrf_token %}
+                  <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:10px;margin-bottom:10px;">
+                    <div class="form-group" style="margin-bottom:0;">
+                      <label class="form-label" style="font-size:10px;">Ítem de la OC</label>
+                      {{ packing_list_form.item_oc }}
+                    </div>
+                    <div class="form-group" style="margin-bottom:0;">
+                      <label class="form-label" style="font-size:10px;">Cant. Despachada</label>
+                      {{ packing_list_form.cantidad }}
+                    </div>
+                    <div class="form-group" style="margin-bottom:0;">
+                      <label class="form-label" style="font-size:10px;">Pallet / Bulto N°</label>
+                      {{ packing_list_form.numero_bulto }}
+                    </div>
+                  </div>
+                  <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;margin-bottom:12px;">
+                    <div class="form-group" style="margin-bottom:0;">
+                      <label class="form-label" style="font-size:10px;">Largo (mt)</label>
+                      {{ packing_list_form.largo_mt }}
+                    </div>
+                    <div class="form-group" style="margin-bottom:0;">
+                      <label class="form-label" style="font-size:10px;">Ancho (mt)</label>
+                      {{ packing_list_form.ancho_mt }}
+                    </div>
+                    <div class="form-group" style="margin-bottom:0;">
+                      <label class="form-label" style="font-size:10px;">Alto (mt)</label>
+                      {{ packing_list_form.alto_mt }}
+                    </div>
+                    <div class="form-group" style="margin-bottom:0;">
+                      <label class="form-label" style="font-size:10px;">Peso (kg)</label>
+                      {{ packing_list_form.peso_kg }}
+                    </div>
+                  </div>
+                  <button type="submit" class="btn btn-sm" style="background:rgba(59,130,246,.15);border:1px solid rgba(59,130,246,.3);color:var(--blue);">
+                    <i data-lucide="package-plus" style="width:13px;height:13px;"></i> Guardar Ítem
+                  </button>
+                </form>
+              </details>
+              {% else %}
+                <p style="font-size:11px;color:var(--txt-3);font-style:italic;padding-top:8px;border-top:1px dashed var(--border);">
+                  💡 Primero agrega ítems al BOM de la OC para poder añadirlos al Packing List.
+                </p>
+              {% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        {% else %}
+          <p style="text-align:center;color:var(--txt-3);font-size:13px;padding:24px 0;">Sin despachos registrados.</p>
+        {% endif %}
+
+
+        <!-- Inline form: New Delivery -->
+        <div style="border-top:1px solid var(--border);margin-top:20px;padding-top:20px;">
+          <h4 style="font-size:13px;font-weight:700;margin-bottom:14px;color:var(--txt-2);display:flex;align-items:center;gap:6px;">
+            <i data-lucide="plus-circle" style="width:14px;height:14px;color:var(--green);"></i> Registrar Nuevo Despacho
+          </h4>
+          <form action="{% url 'add_entrega' project.numero_oc %}" method="POST" enctype="multipart/form-data">
+            {% csrf_token %}
+            <div class="form-grid-3" style="margin-bottom:12px;">
+              <div class="form-group" style="margin-bottom:0;">
+                <label class="form-label">{{ entrega_form.fecha_entrega.label }}</label>
+                {{ entrega_form.fecha_entrega }}
+              </div>
+              <div class="form-group" style="margin-bottom:0;">
+                <label class="form-label">{{ entrega_form.guia_despacho.label }}</label>
+                {{ entrega_form.guia_despacho }}
+              </div>
+              <div class="form-group" style="margin-bottom:0;">
+                <label class="form-label">{{ entrega_form.estado.label }}</label>
+                {{ entrega_form.estado }}
+              </div>
+            </div>
+            <div class="form-group" style="margin-bottom:12px;">
+              <label class="form-label">{{ entrega_form.guia_file.label }}</label>
+              {{ entrega_form.guia_file }}
+            </div>
+            <div class="form-group" style="margin-bottom:12px;">
+              <label class="form-label">{{ entrega_form.cantidad_entregada.label }}</label>
+              {{ entrega_form.cantidad_entregada }}
+            </div>
+            <button type="submit" class="btn btn-success btn-sm">
+              <i data-lucide="save" style="width:14px;height:14px;"></i> Registrar Despacho
+            </button>
+          </form>
+        </div>
+      </div>
+
+      <!-- FMR Records -->
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+          <h3 style="font-size:15px;font-weight:700;display:flex;align-items:center;gap:8px;">
+            <i data-lucide="hash" style="width:16px;height:16px;color:var(--teal);"></i>
+            Registros FMR ({{ fmrs.count }})
+          </h3>
+        </div>
+        {% if fmrs %}
+          <div class="table-wrap" style="margin-bottom:20px;">
+            <table>
+              <thead><tr><th>FMR</th><th>Fecha</th><th>Cotización</th><th>Guía</th><th>Factura</th><th>Registro Final</th></tr></thead>
+              <tbody>
+                {% for f in fmrs %}
+                <tr>
+                  <td><span style="font-weight:700;color:var(--teal);">{{ f.fmr_code }}</span></td>
+                  <td style="font-size:12px;">{{ f.fecha|date:"d/m/Y"|default:"—" }}</td>
+                  <td style="font-size:12px;">{{ f.cotizacion|default:"—" }}</td>
+                  <td style="font-size:12px;">{{ f.guia_despacho|default:"—" }}</td>
+                  <td style="font-size:12px;">{{ f.factura|default:"—" }}</td>
+                  <td style="white-space:nowrap;">
+                    {% if f.registro_link %}
+                      <a href="{{ f.registro_link }}" target="_blank" class="btn btn-ghost btn-sm" style="font-size:11px;padding:3px 6px;">
+                        <i data-lucide="external-link" style="width:12px;height:12px;"></i> Link
+                      </a>
+                    {% endif %}
+                    {% if f.registro_file %}
+                      <a href="{{ f.registro_file.url }}" target="_blank" class="btn btn-ghost btn-sm" style="font-size:11px;padding:3px 6px;background:rgba(20,184,166,.12);border-color:rgba(20,184,166,.25);">
+                        <i data-lucide="download" style="width:12px;height:12px;"></i> Archivo
+                      </a>
+                    {% endif %}
+                    {% if not f.registro_link and not f.registro_file %}
+                      <span style="color:var(--txt-3);font-size:12px;">Sin adjunto</span>
+                    {% endif %}
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% endif %}
+        <!-- Inline: New FMR -->
+        <div style="border-top:1px solid var(--border);padding-top:16px;">
+          <h4 style="font-size:13px;font-weight:700;margin-bottom:14px;color:var(--txt-2);display:flex;align-items:center;gap:6px;">
+            <i data-lucide="plus-circle" style="width:14px;height:14px;color:var(--teal);"></i> Vincular nuevo FMR
+          </h4>
+          <form action="{% url 'add_fmr' project.numero_oc %}" method="POST" enctype="multipart/form-data">
+            {% csrf_token %}
+            <div class="form-grid-3" style="margin-bottom:12px;">
+              <div class="form-group" style="margin-bottom:0;">
+                <label class="form-label">{{ fmr_form.fmr_code.label }}</label>
+                {{ fmr_form.fmr_code }}
+              </div>
+              <div class="form-group" style="margin-bottom:0;">
+                <label class="form-label">{{ fmr_form.fecha.label }}</label>
+                {{ fmr_form.fecha }}
+              </div>
+              <div class="form-group" style="margin-bottom:0;">
+                <label class="form-label">{{ fmr_form.cotizacion.label }}</label>
+                {{ fmr_form.cotizacion }}
+              </div>
+              <div class="form-group" style="margin-bottom:0;">
+                <label class="form-label">{{ fmr_form.guia_despacho.label }}</label>
+                {{ fmr_form.guia_despacho }}
+              </div>
+              <div class="form-group" style="margin-bottom:0;">
+                <label class="form-label">{{ fmr_form.factura.label }}</label>
+                {{ fmr_form.factura }}
+              </div>
+            </div>
+            <div class="form-group" style="margin-bottom:12px;">
+              <label class="form-label">{{ fmr_form.registro_link.label }}</label>
+              {{ fmr_form.registro_link }}
+            </div>
+            <div class="form-group" style="margin-bottom:12px;">
+              <label class="form-label">{{ fmr_form.registro_file.label }}</label>
+              {{ fmr_form.registro_file }}
+            </div>
+            <button type="submit" class="btn btn-sm" style="background:rgba(20,184,166,.15);border:1px solid rgba(20,184,166,.3);color:var(--teal);">
+              <i data-lucide="save" style="width:14px;height:14px;"></i> Guardar FMR
+            </button>
+          </form>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ════ RIGHT COLUMN ════ -->
+    <div style="display:flex;flex-direction:column;gap:24px;">
+
+      <!-- Document Tiles -->
+      <div class="card">
+        <h3 style="font-size:15px;font-weight:700;margin-bottom:16px;display:flex;align-items:center;gap:8px;">
+          <i data-lucide="folder-open" style="width:16px;height:16px;color:var(--purple);"></i> Respaldo Documental
+        </h3>
+        <div class="doc-grid" style="display:grid;grid-template-columns:repeat(auto-fill, minmax(260px, 1fr));gap:12px;">
+
+          <!-- OC -->
+          <div style="background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:8px;padding:16px;display:flex;flex-direction:column;gap:10px;justify-content:space-between;">
+            <div style="display:flex;align-items:center;justify-content:space-between;">
+              <span style="font-size:13px;font-weight:700;display:flex;align-items:center;gap:6px;">
+                📄 OC PDF (Orden de Compra)
+              </span>
+              {% if project.oc_link or project.oc_file %}
+                <span class="semaforo-dot green" style="width:8px;height:8px;"></span>
+              {% else %}
+                <span class="semaforo-dot red" style="width:8px;height:8px;"></span>
+              {% endif %}
+            </div>
+            <div style="display:flex;gap:8px;">
+              {% if project.oc_link %}
+                <a href="{{ project.oc_link }}" target="_blank" class="btn btn-ghost btn-sm" style="flex:1;font-size:12px;padding:10px 12px;min-height:44px;display:inline-flex;align-items:center;justify-content:center;">
+                  <i data-lucide="link" style="width:14px;height:14px;margin-right:4px;"></i> Link
+                </a>
+              {% else %}
+                <span style="font-size:12px;color:var(--txt-3);flex:1;text-align:center;padding:12px 0;border:1px dashed var(--border);border-radius:6px;">Sin link</span>
+              {% endif %}
+              {% if project.oc_file %}
+                <a href="{{ project.oc_file.url }}" target="_blank" class="btn btn-ghost btn-sm" style="flex:1;font-size:12px;padding:10px 12px;min-height:44px;display:inline-flex;align-items:center;justify-content:center;background:rgba(139,92,246,.15);border-color:rgba(139,92,246,.3);color:var(--txt);">
+                  <i data-lucide="download" style="width:14px;height:14px;margin-right:4px;"></i> Archivo
+                </a>
+              {% else %}
+                <span style="font-size:12px;color:var(--txt-3);flex:1;text-align:center;padding:12px 0;border:1px dashed var(--border);border-radius:6px;">Sin archivo</span>
+              {% endif %}
+            </div>
+          </div>
+
+          <!-- Planos -->
+          <div style="background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:8px;padding:16px;display:flex;flex-direction:column;gap:10px;justify-content:space-between;">
+            <div style="display:flex;align-items:center;justify-content:space-between;">
+              <span style="font-size:13px;font-weight:700;display:flex;align-items:center;gap:6px;">
+                📐 Planos de Referencia
+              </span>
+              {% if project.plano_link or project.plano_file %}
+                <span class="semaforo-dot green" style="width:8px;height:8px;"></span>
+              {% else %}
+                <span class="semaforo-dot red" style="width:8px;height:8px;"></span>
+              {% endif %}
+            </div>
+            <div style="display:flex;gap:8px;">
+              {% if project.plano_link %}
+                <a href="{{ project.plano_link }}" target="_blank" class="btn btn-ghost btn-sm" style="flex:1;font-size:12px;padding:10px 12px;min-height:44px;display:inline-flex;align-items:center;justify-content:center;">
+                  <i data-lucide="link" style="width:14px;height:14px;margin-right:4px;"></i> Link
+                </a>
+              {% else %}
+                <span style="font-size:12px;color:var(--txt-3);flex:1;text-align:center;padding:12px 0;border:1px dashed var(--border);border-radius:6px;">Sin link</span>
+              {% endif %}
+              {% if project.plano_file %}
+                <a href="{{ project.plano_file.url }}" target="_blank" class="btn btn-ghost btn-sm" style="flex:1;font-size:12px;padding:10px 12px;min-height:44px;display:inline-flex;align-items:center;justify-content:center;background:rgba(139,92,246,.15);border-color:rgba(139,92,246,.3);color:var(--txt);">
+                  <i data-lucide="download" style="width:14px;height:14px;margin-right:4px;"></i> Archivo
+                </a>
+              {% else %}
+                <span style="font-size:12px;color:var(--txt-3);flex:1;text-align:center;padding:12px 0;border:1px dashed var(--border);border-radius:6px;">Sin archivo</span>
+              {% endif %}
+            </div>
+          </div>
+
+          <!-- Cotización -->
+          <div style="background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:8px;padding:16px;display:flex;flex-direction:column;gap:10px;justify-content:space-between;">
+            <div style="display:flex;align-items:center;justify-content:space-between;">
+              <span style="font-size:13px;font-weight:700;display:flex;align-items:center;gap:6px;">
+                💰 Cotización Inicial
+              </span>
+              {% if project.cotizacion_link or project.cotizacion_file %}
+                <span class="semaforo-dot green" style="width:8px;height:8px;"></span>
+              {% else %}
+                <span class="semaforo-dot red" style="width:8px;height:8px;"></span>
+              {% endif %}
+            </div>
+            <div style="display:flex;gap:8px;">
+              {% if project.cotizacion_link %}
+                <a href="{{ project.cotizacion_link }}" target="_blank" class="btn btn-ghost btn-sm" style="flex:1;font-size:12px;padding:10px 12px;min-height:44px;display:inline-flex;align-items:center;justify-content:center;">
+                  <i data-lucide="link" style="width:14px;height:14px;margin-right:4px;"></i> Link
+                </a>
+              {% else %}
+                <span style="font-size:12px;color:var(--txt-3);flex:1;text-align:center;padding:12px 0;border:1px dashed var(--border);border-radius:6px;">Sin link</span>
+              {% endif %}
+              {% if project.cotizacion_file %}
+                <a href="{{ project.cotizacion_file.url }}" target="_blank" class="btn btn-ghost btn-sm" style="flex:1;font-size:12px;padding:10px 12px;min-height:44px;display:inline-flex;align-items:center;justify-content:center;background:rgba(139,92,246,.15);border-color:rgba(139,92,246,.3);color:var(--txt);">
+                  <i data-lucide="download" style="width:14px;height:14px;margin-right:4px;"></i> Archivo
+                </a>
+              {% else %}
+                <span style="font-size:12px;color:var(--txt-3);flex:1;text-align:center;padding:12px 0;border:1px dashed var(--border);border-radius:6px;">Sin archivo</span>
+              {% endif %}
+            </div>
+          </div>
+
+          <!-- Excel -->
+          <div style="background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:8px;padding:16px;display:flex;flex-direction:column;gap:10px;justify-content:space-between;">
+            <div style="display:flex;align-items:center;justify-content:space-between;">
+              <span style="font-size:13px;font-weight:700;display:flex;align-items:center;gap:6px;">
+                📊 Planilla de Control Excel
+              </span>
+              {% if project.excel_link or project.excel_file %}
+                <span class="semaforo-dot green" style="width:8px;height:8px;"></span>
+              {% else %}
+                <span class="semaforo-dot red" style="width:8px;height:8px;"></span>
+              {% endif %}
+            </div>
+            <div style="display:flex;gap:8px;">
+              {% if project.excel_link %}
+                <a href="{{ project.excel_link }}" target="_blank" class="btn btn-ghost btn-sm" style="flex:1;font-size:12px;padding:10px 12px;min-height:44px;display:inline-flex;align-items:center;justify-content:center;">
+                  <i data-lucide="link" style="width:14px;height:14px;margin-right:4px;"></i> Link
+                </a>
+              {% else %}
+                <span style="font-size:12px;color:var(--txt-3);flex:1;text-align:center;padding:12px 0;border:1px dashed var(--border);border-radius:6px;">Sin link</span>
+              {% endif %}
+              {% if project.excel_file %}
+                <a href="{{ project.excel_file.url }}" target="_blank" class="btn btn-ghost btn-sm" style="flex:1;font-size:12px;padding:10px 12px;min-height:44px;display:inline-flex;align-items:center;justify-content:center;background:rgba(139,92,246,.15);border-color:rgba(139,92,246,.3);color:var(--txt);">
+                  <i data-lucide="download" style="width:14px;height:14px;margin-right:4px;"></i> Archivo
+                </a>
+              {% else %}
+                <span style="font-size:12px;color:var(--txt-3);flex:1;text-align:center;padding:12px 0;border:1px dashed var(--border);border-radius:6px;">Sin archivo</span>
+              {% endif %}
+            </div>
+          </div>
+
+          <!-- Dossier -->
+          <div style="background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:8px;padding:16px;display:flex;flex-direction:column;gap:10px;justify-content:space-between;">
+            <div style="display:flex;align-items:center;justify-content:space-between;">
+              <span style="font-size:13px;font-weight:700;display:flex;align-items:center;gap:6px;">
+                ✅ Dossier de Calidad
+              </span>
+              {% if project.dossier_link or project.dossier_file %}
+                <span class="semaforo-dot green" style="width:8px;height:8px;"></span>
+              {% else %}
+                <span class="semaforo-dot red" style="width:8px;height:8px;"></span>
+              {% endif %}
+            </div>
+            <div style="display:flex;gap:8px;">
+              {% if project.dossier_link %}
+                <a href="{{ project.dossier_link }}" target="_blank" class="btn btn-ghost btn-sm" style="flex:1;font-size:12px;padding:10px 12px;min-height:44px;display:inline-flex;align-items:center;justify-content:center;">
+                  <i data-lucide="link" style="width:14px;height:14px;margin-right:4px;"></i> Link
+                </a>
+              {% else %}
+                <span style="font-size:12px;color:var(--txt-3);flex:1;text-align:center;padding:12px 0;border:1px dashed var(--border);border-radius:6px;">Sin link</span>
+              {% endif %}
+              {% if project.dossier_file %}
+                <a href="{{ project.dossier_file.url }}" target="_blank" class="btn btn-ghost btn-sm" style="flex:1;font-size:12px;padding:10px 12px;min-height:44px;display:inline-flex;align-items:center;justify-content:center;background:rgba(139,92,246,.15);border-color:rgba(139,92,246,.3);color:var(--txt);">
+                  <i data-lucide="download" style="width:14px;height:14px;margin-right:4px;"></i> Archivo
+                </a>
+              {% else %}
+                <span style="font-size:12px;color:var(--txt-3);flex:1;text-align:center;padding:12px 0;border:1px dashed var(--border);border-radius:6px;">Sin archivo</span>
+              {% endif %}
+            </div>
+          </div>
+
+          <!-- Registro Final -->
+          <div style="background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:8px;padding:16px;display:flex;flex-direction:column;gap:10px;justify-content:space-between;">
+            <div style="display:flex;align-items:center;justify-content:space-between;">
+              <span style="font-size:13px;font-weight:700;display:flex;align-items:center;gap:6px;">
+                📁 Registro Final FMR
+              </span>
+              {% with fmr_pdf=fmrs|first %}
+                {% if project.fmr_link or project.fmr_file or fmr_pdf.registro_link or fmr_pdf.registro_file %}
+                  <span class="semaforo-dot green" style="width:8px;height:8px;"></span>
+                {% else %}
+                  <span class="semaforo-dot red" style="width:8px;height:8px;"></span>
+                {% endif %}
+              {% endwith %}
+            </div>
+            <div style="display:flex;gap:8px;">
+              {% with fmr_pdf=fmrs|first %}
+                {% if project.fmr_link or fmr_pdf.registro_link %}
+                  <a href="{% if project.fmr_link %}{{ project.fmr_link }}{% else %}{{ fmr_pdf.registro_link }}{% endif %}" target="_blank" class="btn btn-ghost btn-sm" style="flex:1;font-size:12px;padding:10px 12px;min-height:44px;display:inline-flex;align-items:center;justify-content:center;">
+                    <i data-lucide="link" style="width:14px;height:14px;margin-right:4px;"></i> Link
+                  </a>
+                {% else %}
+                  <span style="font-size:12px;color:var(--txt-3);flex:1;text-align:center;padding:12px 0;border:1px dashed var(--border);border-radius:6px;">Sin link</span>
+                {% endif %}
+                {% if project.fmr_file or fmr_pdf.registro_file %}
+                  <a href="{% if project.fmr_file %}{{ project.fmr_file.url }}{% else %}{{ fmr_pdf.registro_file.url }}{% endif %}" target="_blank" class="btn btn-ghost btn-sm" style="flex:1;font-size:12px;padding:10px 12px;min-height:44px;display:inline-flex;align-items:center;justify-content:center;background:rgba(139,92,246,.15);border-color:rgba(139,92,246,.3);color:var(--txt);">
+                    <i data-lucide="download" style="width:14px;height:14px;margin-right:4px;"></i> Archivo
+                  </a>
+                {% else %}
+                  <span style="font-size:12px;color:var(--txt-3);flex:1;text-align:center;padding:12px 0;border:1px dashed var(--border);border-radius:6px;">Sin archivo</span>
+                {% endif %}
+              {% endwith %}
+            </div>
+          </div>
+
+        </div>
+        <div style="margin-top:16px;text-align:right;">
+          <a href="{% url 'oc_edit' project.numero_oc %}" class="btn btn-ghost btn-sm" style="font-size:12px;min-height:38px;padding:8px 12px;display:inline-flex;align-items:center;">
+            <i data-lucide="pencil" style="width:13px;height:13px;margin-right:4px;"></i> Modificar Respaldos
+          </a>
+        </div>
+      </div>
+
+      <!-- Cost Center & Excel-like Utility -->
+      <div class="card">
+        <h3 style="font-size:15px;font-weight:700;margin-bottom:18px;display:flex;align-items:center;gap:8px;">
+          <i data-lucide="receipt" style="width:16px;height:16px;color:var(--amber);"></i> Control de Costos y Utilidades
+        </h3>
+
+        <!-- Tab headers -->
+        <div style="display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:16px;padding-bottom:1px;">
+          <button onclick="switchCostTab('resumen')" id="tabBtn-resumen" class="btn btn-ghost btn-sm active-tab-style" style="border-radius:6px 6px 0 0;padding:6px 12px;font-size:12px;">📊 Resumen de Utilidad</button>
+          <button onclick="switchCostTab('materiales')" id="tabBtn-materiales" class="btn btn-ghost btn-sm" style="border-radius:6px 6px 0 0;padding:6px 12px;font-size:12px;">🔩 Materiales ({{ material_costs.count }})</button>
+          <button onclick="switchCostTab('mano-obra')" id="tabBtn-mano-obra" class="btn btn-ghost btn-sm" style="border-radius:6px 6px 0 0;padding:6px 12px;font-size:12px;">👷 Mano de Obra ({{ mano_obra_costs.count }})</button>
+        </div>
+
+        <!-- ════ TAB 1: RESUMEN DE UTILIDAD ════ -->
+        <div id="costTab-resumen" class="cost-tab-content">
+          <!-- Excel Metrics Summary Box -->
+          <div style="background:rgba(255,255,255,.015);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:16px;">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
+              <div>
+                <div style="font-size:10px;color:var(--txt-3);text-transform:uppercase;">TOTAL MANO DE OBRA</div>
+                <div style="font-size:15px;font-weight:700;color:var(--txt);">${{ mano_obra_total|floatformat:0 }}</div>
+              </div>
+              <div>
+                <div style="font-size:10px;color:var(--txt-3);text-transform:uppercase;">MATERIALES</div>
+                <div style="font-size:15px;font-weight:700;color:var(--txt);">${{ material_total|floatformat:0 }}</div>
+              </div>
+            </div>
+            <div style="height:1px;background:var(--border);margin-bottom:12px;"></div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
+              <div>
+                <div style="font-size:10px;color:var(--txt-3);text-transform:uppercase;">COSTO TRABAJO TOTAL</div>
+                <div style="font-size:15px;font-weight:700;color:var(--amber);">${{ costs_total|floatformat:0 }}</div>
+              </div>
+              <div>
+                <div style="font-size:10px;color:var(--txt-3);text-transform:uppercase;">TOTAL (SIN IVA)</div>
+                <div style="font-size:15px;font-weight:700;color:var(--green);">${{ project.valor_total|floatformat:0 }}</div>
+              </div>
+            </div>
+            <div style="height:1px;background:var(--border);margin-bottom:12px;"></div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:10px;">
+              <div>
+                <div style="font-size:10px;color:var(--txt-3);text-transform:uppercase;">UTILIDAD REAL</div>
+                <span style="font-size:16px;font-weight:800;{% if margin < 0 %}color:var(--rose){% else %}color:var(--green){% endif %};">
+                  ${{ margin|floatformat:0 }}
+                </span>
+              </div>
+              <div>
+                <div style="font-size:10px;color:var(--txt-3);text-transform:uppercase;">% UTILIDAD</div>
+                <span style="font-size:16px;font-weight:800;{% if margin_pct < 0 %}color:var(--rose){% else %}color:var(--green){% endif %};">
+                  {{ margin_pct }}%
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Unitary Calculations (By Kilo) -->
+          <div style="background:rgba(59,130,246,.03);border:1px solid rgba(59,130,246,.15);border-radius:10px;padding:12px 16px;margin-bottom:16px;font-size:12px;">
+            <div style="display:flex;align-items:center;gap:6px;font-weight:700;margin-bottom:8px;color:var(--blue);">
+              <i data-lucide="scale" style="width:14px;height:14px;"></i> Indicadores por Kilo (BOM)
+            </div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+              <span style="color:var(--txt-2);">Kilos Totales:</span>
+              <span style="font-weight:700;">{{ total_weight|floatformat:1 }} kg</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+              <span style="color:var(--txt-2);">Costo por Kilo:</span>
+              <span style="font-weight:600;">${{ costo_por_kilo|floatformat:0 }}/kg</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;">
+              <span style="color:var(--txt-2);">Utilidad por Kilo:</span>
+              <span style="font-weight:700;{% if utilidad_por_kilo < 0 %}color:var(--rose){% else %}color:var(--green){% endif %};">${{ utilidad_por_kilo|floatformat:0 }}/kg</span>
+            </div>
+          </div>
+
+          <!-- Traditional General Costs Form -->
+          <details style="background:rgba(255,255,255,.01);border:1px solid var(--border);border-radius:8px;padding:10px;">
+            <summary style="cursor:pointer;font-size:12px;font-weight:700;color:var(--txt-2);">
+              ➕ Registrar otro tipo de gasto (Transporte, Subcontratos...)
+            </summary>
+            <form action="{% url 'add_cost' project.numero_oc %}" method="POST" style="margin-top:10px;">
+              {% csrf_token %}
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+                <div class="form-group" style="margin-bottom:0;">
+                  <label class="form-label" style="font-size:10px;">{{ costo_form.categoria.label }}</label>
+                  {{ costo_form.categoria }}
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                  <label class="form-label" style="font-size:10px;">Monto ($)</label>
+                  {{ costo_form.monto }}
+                </div>
+              </div>
+              <div class="form-group" style="margin-bottom:10px;">
+                <label class="form-label" style="font-size:10px;">{{ costo_form.descripcion.label }}</label>
+                {{ costo_form.descripcion }}
+              </div>
+              <button type="submit" class="btn btn-warning btn-sm" style="width:100%;font-size:11px;">Registrar Gasto</button>
+            </form>
+          </details>
+
+          <!-- General/Other Costs History -->
+          {% if costs %}
+            <div style="margin-top:16px;">
+              <div style="font-size:11px;font-weight:700;color:var(--txt-3);text-transform:uppercase;margin-bottom:8px;">Otros Gastos Registrados</div>
+              <div style="max-height:165px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;">
+                {% for c in costs %}
+                  <div style="background:rgba(255,255,255,.02);border:1px solid var(--border);padding:8px;border-radius:6px;font-size:11px;display:flex;justify-content:space-between;align-items:center;">
+                    <div>
+                      <span class="badge badge-grey" style="font-size:9px;padding:2px 4px;">{{ c.categoria }}</span>
+                      <span style="color:var(--txt-2);margin-left:4px;">{{ c.descripcion }}</span>
+                    </div>
+                    <span style="font-weight:700;">${{ c.monto|floatformat:0 }}</span>
+                  </div>
+                {% endfor %}
+              </div>
+            </div>
+          {% endif %}
+        </div>
+
+        <!-- ════ TAB 2: DETALLE DE MATERIALES ════ -->
+        <div id="costTab-materiales" class="cost-tab-content" style="display:none;">
+          <form action="{% url 'add_cost_material' project.numero_oc %}" method="POST" style="background:rgba(255,255,255,.02);border:1px solid var(--border);padding:12px;border-radius:8px;margin-bottom:16px;">
+            {% csrf_token %}
+            <div class="form-group" style="margin-bottom:8px;">
+              <label class="form-label" style="font-size:10px;">Producto / Material</label>
+              {{ costo_material_form.producto }}
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1.2fr;gap:8px;margin-bottom:8px;">
+              <div class="form-group" style="margin-bottom:0;">
+                <label class="form-label" style="font-size:10px;">Cantidad</label>
+                {{ costo_material_form.cantidad }}
+              </div>
+              <div class="form-group" style="margin-bottom:0;">
+                <label class="form-label" style="font-size:10px;">Valor Unitario ($)</label>
+                {{ costo_material_form.valor_unitario }}
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1.2fr 1fr;gap:8px;margin-bottom:12px;">
+              <div class="form-group" style="margin-bottom:0;">
+                <label class="form-label" style="font-size:10px;">Proveedor</label>
+                {{ costo_material_form.proveedor }}
+              </div>
+              <div class="form-group" style="margin-bottom:0;">
+                <label class="form-label" style="font-size:10px;">Fecha Compra</label>
+                {{ costo_material_form.fecha_compra }}
+              </div>
+            </div>
+            <button type="submit" class="btn btn-sm btn-primary" style="width:100%;font-size:11px;">
+              <i data-lucide="shopping-cart" style="width:12px;height:12px;vertical-align:middle;margin-right:2px;"></i> Agregar Material Comprado
+            </button>
+          </form>
+
+          <!-- List Materials -->
+          {% if material_costs %}
+            <div class="table-responsive" style="max-height:260px;overflow-y:auto;border:1px solid var(--border);border-radius:6px;">
+              <table style="font-size:11px;margin-bottom:0;width:100%;">
+                <thead>
+                  <tr style="background:rgba(255,255,255,.02);">
+                    <th>Producto</th>
+                    <th style="text-align:center;">Cant × Unit</th>
+                    <th style="text-align:right;">Total</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for mc in material_costs %}
+                    <tr>
+                      <td style="font-weight:600;">
+                        {{ mc.producto }}
+                        {% if mc.proveedor %}<span style="display:block;font-size:9px;color:var(--txt-3);">{{ mc.proveedor }}</span>{% endif %}
+                      </td>
+                      <td style="text-align:center;color:var(--txt-2);">{{ mc.cantidad|floatformat:1 }} × ${{ mc.valor_unitario|floatformat:0 }}</td>
+                      <td style="text-align:right;font-weight:700;color:var(--txt);">${{ mc.total|floatformat:0 }}</td>
+                      <td style="text-align:center;">
+                        <a href="{% url 'delete_cost_material' project.numero_oc mc.id %}" onclick="return confirm('¿Eliminar este material?')" class="btn btn-ghost btn-sm" style="padding:2px 4px;color:var(--rose);">
+                          <i data-lucide="trash-2" style="width:12px;height:12px;"></i>
+                        </a>
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <p style="font-size:11px;color:var(--txt-3);text-align:center;font-style:italic;padding:12px;">No hay materiales registrados aún.</p>
+          {% endif %}
+        </div>
+
+        <!-- ════ TAB 3: DETALLE DE MANO DE OBRA ════ -->
+        <div id="costTab-mano-obra" class="cost-tab-content" style="display:none;">
+          <form action="{% url 'add_cost_mano_obra' project.numero_oc %}" method="POST" style="background:rgba(255,255,255,.02);border:1px solid var(--border);padding:12px;border-radius:8px;margin-bottom:16px;">
+            {% csrf_token %}
+            <div style="display:grid;grid-template-columns:1.2fr 1fr;gap:8px;margin-bottom:8px;">
+              <div class="form-group" style="margin-bottom:0;">
+                <label class="form-label" style="font-size:10px;">Cargo / Rol</label>
+                {{ costo_mano_obra_form.cargo }}
+              </div>
+              <div class="form-group" style="margin-bottom:0;">
+                <label class="form-label" style="font-size:10px;">Precio/Hora</label>
+                {{ costo_mano_obra_form.precio_hora }}
+              </div>
+            </div>
+            <div id="divCargoOtro" class="form-group" style="margin-bottom:8px;display:none;">
+              <label class="form-label" style="font-size:10px;">Especificar Cargo</label>
+              {{ costo_mano_obra_form.cargo_otro }}
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px;">
+              <div class="form-group" style="margin-bottom:0;">
+                <label class="form-label" style="font-size:9px;">Horas Norm</label>
+                {{ costo_mano_obra_form.horas_normales }}
+              </div>
+              <div class="form-group" style="margin-bottom:0;">
+                <label class="form-label" style="font-size:9px;">Horas Extra</label>
+                {{ costo_mano_obra_form.horas_extra }}
+              </div>
+              <div class="form-group" style="margin-bottom:0;">
+                <label class="form-label" style="font-size:9px;">N° Trab.</label>
+                {{ costo_mano_obra_form.cantidad_trabajadores }}
+              </div>
+            </div>
+            <button type="submit" class="btn btn-sm btn-primary" style="width:100%;font-size:11px;">
+              <i data-lucide="user-check" style="width:12px;height:12px;vertical-align:middle;margin-right:2px;"></i> Agregar Mano de Obra
+            </button>
+          </form>
+
+          <!-- List Mano Obra -->
+          {% if mano_obra_costs %}
+            <div class="table-responsive" style="max-height:260px;overflow-y:auto;border:1px solid var(--border);border-radius:6px;">
+              <table style="font-size:11px;margin-bottom:0;width:100%;">
+                <thead>
+                  <tr style="background:rgba(255,255,255,.02);">
+                    <th>Cargo</th>
+                    <th style="text-align:center;">Detalle de Horas (N+E) × Trab.</th>
+                    <th style="text-align:right;">Total</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for moc in mano_obra_costs %}
+                    <tr>
+                      <td style="font-weight:600;">{{ moc.nombre_cargo }}</td>
+                      <td style="text-align:center;color:var(--txt-2);">
+                        ({{ moc.horas_normales }}h + {{ moc.horas_extra }}h) × {{ moc.cantidad_trabajadores }} @ ${{ moc.precio_hora|floatformat:0 }}
+                      </td>
+                      <td style="text-align:right;font-weight:700;color:var(--txt);">${{ moc.total|floatformat:0 }}</td>
+                      <td style="text-align:center;">
+                        <a href="{% url 'delete_cost_mano_obra' project.numero_oc moc.id %}" onclick="return confirm('¿Eliminar esta fila de mano de obra?')" class="btn btn-ghost btn-sm" style="padding:2px 4px;color:var(--rose);">
+                          <i data-lucide="trash-2" style="width:12px;height:12px;"></i>
+                        </a>
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <p style="font-size:11px;color:var(--txt-3);text-align:center;font-style:italic;padding:12px;">No hay personal registrado aún.</p>
+          {% endif %}
+        </div>
+
+      </div>
+
+      <style>
+        .active-tab-style {
+          background-color: rgba(255,255,255,0.06) !important;
+          border-bottom: 2px solid var(--amber) !important;
+          color: var(--txt) !important;
+        }
+      </style>
+
+      <script>
+        function switchCostTab(tabId) {
+          // Hide all tab contents
+          document.querySelectorAll('.cost-tab-content').forEach(function(el) {
+            el.style.display = 'none';
+          });
+          // Remove active class from buttons
+          document.getElementById('tabBtn-resumen').classList.remove('active-tab-style');
+          document.getElementById('tabBtn-materiales').classList.remove('active-tab-style');
+          document.getElementById('tabBtn-mano-obra').classList.remove('active-tab-style');
+
+          // Show targeted tab & activate button
+          document.getElementById('costTab-' + tabId).style.display = 'block';
+          document.getElementById('tabBtn-' + tabId).classList.add('active-tab-style');
+        }
+
+        // Toggle "cargo_otro" field depending on select value
+        const cargoSelectVal = document.getElementById('id_cargo');
+        if (cargoSelectVal) {
+          cargoSelectVal.addEventListener('change', function() {
+            const divOtro = document.getElementById('divCargoOtro');
+            if (this.value === 'Otro') {
+              divOtro.style.display = 'block';
+            } else {
+              divOtro.style.display = 'none';
+            }
+          });
+        }
+      </script>
+
+
+    </div>
+  </div>
+
+  <!-- Full-Width grid for items checklist & audit log (trazabilidad) -->
+  <div class="project-bottom-layout">
+      
+     <!-- Card 1: Checklist de Materiales e Items OC -->
+     <div class="card" style="grid-column: span 1;">
+         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+            <h3 style="font-size:15px;font-weight:700;display:flex;align-items:center;gap:8px;">
+               <i data-lucide="list-checks" style="width:16px;height:16px;color:var(--blue);"></i>
+               Ítems y Materiales del Proyecto (BOM)
+            </h3>
+            <span style="font-size:12px;color:var(--txt-2);font-weight:600;">Masa Total: {{ total_weight|floatformat:1 }} kg</span>
+         </div>
+         
+         {% if items %}
+           <div class="table-wrap" style="max-height: 380px; overflow-y: auto; margin-bottom: 20px;">
+              <table>
+                 <thead>
+                    <tr>
+                       <th>Línea</th>
+                       <th>Código Plano</th>
+                       <th>Descripción</th>
+                       <th>U.M.</th>
+                       <th style="text-align:right;">Masa Unit (kg)</th>
+                       <th style="text-align:right;">Masa Tot (kg)</th>
+                       <th style="text-align:right;">Cant.</th>
+                       <th style="text-align:right;">Entregado</th>
+                       <th style="text-align:right;">Subtotal</th>
+                    </tr>
+                 </thead>
+                 <tbody>
+                    {% for item in items %}
+                    <tr>
+                       <td><span style="font-weight:700;color:var(--purple);">{{ item.linea }}</span></td>
+                       <td style="font-size:11px;font-family:monospace;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{{ item.codigo }}">{{ item.codigo }}</td>
+                       <td style="font-size:12px;">{{ item.descripcion }}</td>
+                       <td style="font-size:11px;color:var(--txt-2);text-transform:uppercase;">{{ item.unidad }}</td>
+                       <td style="text-align:right;font-size:12px;">{{ item.peso_unitario_kg|floatformat:1|default:"0.0" }}</td>
+                       <td style="text-align:right;font-size:12px;font-weight:600;">{{ item.peso_total_kg|floatformat:1 }}</td>
+                       <td style="text-align:right;font-weight:700;">{{ item.cantidad }}</td>
+                       <td style="text-align:right;color:var(--green);font-weight:600;">{{ item.cantidad_entregada }}</td>
+                       <td style="text-align:right;font-weight:700;color:var(--green);">${{ item.valor_total|floatformat:0 }}</td>
+                    </tr>
+                    {% endfor %}
+                 </tbody>
+              </table>
+           </div>
+         {% else %}
+           <div style="background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:8px;padding:32px;text-align:center;color:var(--txt-3);margin-bottom:20px;">
+              <i data-lucide="alert-circle" style="width:24px;height:24px;margin-bottom:8px;opacity:.5;color:var(--txt-3);"></i>
+              <p style="font-size:13px;">No hay ítems registrados en esta Orden de Compra.</p>
+           </div>
+         {% endif %}
+
+         <!-- Form trigger/inline add -->
+         <div style="border-top:1px solid var(--border);padding-top:16px;">
+            <h4 style="font-size:12px;font-weight:700;color:var(--txt-2);margin-bottom:12px;text-transform:uppercase;letter-spacing:.05em;display:flex;align-items:center;gap:6px;">
+              <i data-lucide="plus-circle" style="width:14px;height:14px;color:var(--purple);"></i> Agregar Ítem de Material
+            </h4>
+            <form action="{% url 'add_item' project.numero_oc %}" method="POST">
+               {% csrf_token %}
+               <div style="display:grid;grid-template-columns:1fr 2fr;gap:10px;margin-bottom:10px;">
+                  <div class="form-group" style="margin-bottom:0;">
+                     <label class="form-label" style="font-size:10px;">Línea</label>
+                     {{ item_form.linea }}
+                  </div>
+                  <div class="form-group" style="margin-bottom:0;">
+                     <label class="form-label" style="font-size:10px;">Código Plano / Ítem</label>
+                     {{ item_form.codigo }}
+                  </div>
+               </div>
+               <div class="form-group" style="margin-bottom:10px;">
+                  <label class="form-label" style="font-size:10px;">Descripción</label>
+                  {{ item_form.descripcion }}
+               </div>
+               <div style="display:grid;grid-template-columns:repeat(4, 1fr);gap:10px;margin-bottom:12px;">
+                  <div class="form-group" style="margin-bottom:0;">
+                     <label class="form-label" style="font-size:9px;">U.M. (EA/KG)</label>
+                     {{ item_form.unidad }}
+                  </div>
+                  <div class="form-group" style="margin-bottom:0;">
+                     <label class="form-label" style="font-size:9px;">Masa Unit (kg)</label>
+                     {{ item_form.peso_unitario_kg }}
+                  </div>
+                  <div class="form-group" style="margin-bottom:0;">
+                     <label class="form-label" style="font-size:9px;">Cant. Solicitada</label>
+                     {{ item_form.cantidad }}
+                  </div>
+                  <div class="form-group" style="margin-bottom:0;">
+                     <label class="form-label" style="font-size:9px;">Precio Unitario</label>
+                     {{ item_form.precio_unitario }}
+                  </div>
+               </div>
+               <button type="submit" class="btn btn-primary btn-sm" style="width:100%;">
+                  <i data-lucide="plus" style="width:13px;height:13px;"></i> Agregar Ítem al Catálogo
+               </button>
+            </form>
+         </div>
+     </div>
+
+     <!-- Card 2: Historial de Cambios y Trazabilidad (Audit Trail) -->
+     <div class="card" style="grid-column: span 1;">
+         <h3 style="font-size:15px;font-weight:700;margin-bottom:16px;display:flex;align-items:center;gap:8px;">
+            <i data-lucide="history" style="width:16px;height:16px;color:var(--purple);"></i>
+            Bitácora de Trazabilidad (Audit Trail)
+         </h3>
+         
+         <div style="max-height: 480px; overflow-y: auto; padding-right: 8px; display:flex; flex-direction:column; gap:16px; position:relative; padding-left:16px; border-left:1px dashed var(--border);">
+            {% for log in trazabilidades %}
+              <div style="position:relative;">
+                 <span style="position:absolute; left:-21px; top:4px; width:9px; height:9px; border-radius:50%; background:var(--purple); border:2px solid var(--bg-2); box-shadow:0 0 6px var(--purple);"></span>
+                 <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--txt-3);margin-bottom:3px;">
+                    <span style="font-weight:600;color:var(--txt-2);">
+                      <i data-lucide="user" style="width:10px;height:10px;display:inline-block;vertical-align:middle;margin-right:2px;"></i>
+                      {{ log.usuario.username|default:"Sistema" }}
+                    </span>
+                    <span>{{ log.fecha_hora|date:"d/m/Y H:i:s" }}</span>
+                 </div>
+                 <div style="font-size:12px;font-weight:700;color:var(--txt);margin-bottom:2px;">{{ log.accion }}</div>
+                 <div style="font-size:12px;color:var(--txt-2);line-height:1.4;">{{ log.detalle }}</div>
+              </div>
+            {% empty %}
+              <p style="color:var(--txt-3);text-align:center;font-size:13px;padding:32px 0;">No se registran eventos de trazabilidad aún para esta OC.</p>
+            {% endfor %}
+         </div>
+     </div>
+
+  </div>
+
+</div>
+{% endblock %}

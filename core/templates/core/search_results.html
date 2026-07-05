@@ -1,0 +1,100 @@
+{% extends 'core/base.html' %}
+{% block title %}Búsqueda: "{{ query }}" — SIB Bark{% endblock %}
+
+{% block content %}
+<div class="fade-up">
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">Resultados de Búsqueda</h1>
+      <p class="page-sub">{{ results_oc.count|add:results_fmr.count }} resultado{{ results_oc.count|add:results_fmr.count|pluralize }} para «{{ query }}»</p>
+    </div>
+    <a href="{% url 'project_list' %}" class="btn btn-ghost btn-sm">
+      <i data-lucide="layout-list" style="width:14px;height:14px;"></i> Ver todos
+    </a>
+  </div>
+
+  {% if not results_oc and not results_fmr and query %}
+    <div class="card" style="text-align:center;padding:60px 24px;">
+      <i data-lucide="search-x" style="width:40px;height:40px;margin-bottom:14px;color:var(--txt-3);"></i>
+      <h3 style="font-size:18px;font-weight:700;margin-bottom:8px;">Sin resultados</h3>
+      <p style="color:var(--txt-2);">No se encontró ningún proyecto con «{{ query }}».<br>Intenta buscar por número de OC, FMR, guía de despacho, factura o cliente.</p>
+    </div>
+  {% endif %}
+
+  <!-- OC Results -->
+  {% if results_oc %}
+  <div style="margin-bottom:28px;">
+    <h3 style="font-size:14px;font-weight:700;color:var(--txt-2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:14px;">
+      <i data-lucide="file-text" style="width:14px;height:14px;"></i> Órdenes de Compra ({{ results_oc.count }})
+    </h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th class="d-none d-md-table-cell">FMR</th><th>Número OC</th><th>Cliente</th>
+          <th class="d-none d-lg-table-cell">Descripción</th><th style="text-align:center;">Plazo</th>
+          <th>Estado</th><th style="text-align:center;">Acciones</th>
+        </tr></thead>
+        <tbody>
+          {% for oc in results_oc %}
+          <tr>
+            <td class="d-none d-md-table-cell">{% for fmr in oc.fmrs.all %}<span class="badge badge-blue">{{ fmr.fmr_code }}</span> {% empty %}—{% endfor %}</td>
+            <td><a href="{% url 'project_detail' oc.numero_oc %}" style="font-weight:600;">{{ oc.numero_oc|truncatechars:30 }}</a></td>
+            <td style="font-size:13px;">{{ oc.cliente }}</td>
+            <td class="d-none d-lg-table-cell" style="font-size:12px;color:var(--txt-2);">{{ oc.descripcion|truncatechars:50|default:"—" }}</td>
+            <td style="text-align:center;">
+              <div class="semaforo-cell {{ oc.semaforo_plazo }}">
+                <span class="semaforo-dot {{ oc.semaforo_plazo }}"></span>
+              </div>
+            </td>
+            <td><span class="badge {% if oc.estado == 'Facturado' or oc.estado == 'Cerrado' %}badge-success{% elif oc.estado == 'En proceso' %}badge-warning{% else %}badge-grey{% endif %}">{{ oc.estado }}</span></td>
+            <td style="text-align:center;"><a href="{% url 'project_detail' oc.numero_oc %}" class="btn btn-ghost btn-sm" style="padding:0 8px; min-height:36px;">Ver</a></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- FMR Results -->
+  {% if results_fmr %}
+  <div>
+    <h3 style="font-size:14px;font-weight:700;color:var(--txt-2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:14px;">
+      <i data-lucide="hash" style="width:14px;height:14px;"></i> Registros FMR ({{ results_fmr.count }})
+    </h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>FMR</th><th class="d-none d-sm-table-cell">Fecha</th><th>OC Asociada</th><th class="d-none d-md-table-cell">Cotización</th><th class="d-none d-md-table-cell">Guía</th><th>Factura</th><th>Reg. Final</th>
+        </tr></thead>
+        <tbody>
+          {% for f in results_fmr %}
+          <tr>
+            <td><span style="font-weight:700;color:var(--teal);">{{ f.fmr_code }}</span></td>
+            <td class="d-none d-sm-table-cell" style="font-size:12px;">{{ f.fecha|date:"d/m/Y"|default:"—" }}</td>
+            <td>
+              {% if f.orden_compra %}
+                <a href="{% url 'project_detail' f.orden_compra.numero_oc %}" style="font-size:12px;">{{ f.orden_compra.numero_oc|truncatechars:28 }}</a>
+              {% else %}—{% endif %}
+            </td>
+            <td class="d-none d-md-table-cell" style="font-size:12px;">{{ f.cotizacion|default:"—" }}</td>
+            <td class="d-none d-md-table-cell" style="font-size:12px;">{{ f.guia_despacho|default:"—" }}</td>
+            <td style="font-size:12px;">{{ f.factura|default:"—" }}</td>
+            <td>
+              {% if f.registro_link %}
+                <a href="{{ f.registro_link }}" target="_blank" class="btn btn-ghost btn-sm" style="padding:0 8px; min-height:36px;">
+                  <i data-lucide="external-link" style="width:12px;height:12px;"></i> PDF
+                </a>
+              {% else %}—{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+
+</div>
+{% endblock %}

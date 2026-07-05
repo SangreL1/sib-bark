@@ -1,0 +1,310 @@
+{% extends 'core/base.html' %}
+{% block title %}Dashboard — SIB Bark{% endblock %}
+
+{% block content %}
+<div class="fade-up">
+
+  <!-- Encabezado -->
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">Panel de Control</h1>
+      <p class="page-sub">Monitoreo global de órdenes de compra, despachos, facturación y márgenes — Bark SPA.</p>
+    </div>
+  </div>
+
+  <!-- ── ROW 1: 5 KPI tarjetas superiores ──────────────────────────────── -->
+  <div class="stat-grid" style="margin-bottom:28px;">
+
+    <div class="stat-card">
+      <div class="stat-label">
+        <span>Ingreso Total (sin IVA)</span>
+        <div class="stat-icon" style="color:var(--blue);"><i data-lucide="dollar-sign" style="width:16px;height:16px;"></i></div>
+      </div>
+      <div class="stat-value">${{ total_revenue|floatformat:0 }}</div>
+      <div class="stat-sub">Suma valor_total de todas las OC</div>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-label">
+        <span>Costos Registrados</span>
+        <div class="stat-icon" style="color:var(--amber);"><i data-lucide="receipt" style="width:16px;height:16px;"></i></div>
+      </div>
+      <div class="stat-value" style="color:var(--amber);">${{ total_costs|floatformat:0 }}</div>
+      <div class="stat-sub">Materiales, mano de obra, subcontratos…</div>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-label">
+        <span>Margen Neto Estimado</span>
+        <div class="stat-icon" style="color:var(--green);"><i data-lucide="trending-up" style="width:16px;height:16px;"></i></div>
+      </div>
+      <div class="stat-value" style="color:{% if global_margin < 0 %}var(--rose){% else %}var(--green){% endif %};">
+        ${{ global_margin|floatformat:0 }}
+      </div>
+      <div class="stat-sub">{{ global_margin_pct }}% del ingreso total</div>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-label">
+        <span>Pendiente de Facturar</span>
+        <div class="stat-icon" style="color:var(--rose);"><i data-lucide="file-warning" style="width:16px;height:16px;"></i></div>
+      </div>
+      <div class="stat-value" style="color:var(--rose);">${{ monto_pendiente_facturar|floatformat:0 }}</div>
+      <div class="stat-sub">OC sin factura + facturas pendientes de pago</div>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-label">
+        <span>Órdenes de Compra</span>
+        <div class="stat-icon" style="color:var(--purple);"><i data-lucide="clipboard-list" style="width:16px;height:16px;"></i></div>
+      </div>
+      <div class="stat-value">{{ total_ocs }}</div>
+      <div class="stat-sub">Proyectos activos e históricos</div>
+    </div>
+
+  </div>
+
+  <!-- ── ROW 2: Semáforos + Reporte Mensual ────────────────────────────── -->
+  <div class="dashboard-grid-1-2">
+
+    <!-- Semáforos conteo -->
+    <div class="card">
+      <h3 style="font-size:15px;font-weight:700;margin-bottom:18px;display:flex;align-items:center;gap:8px;">
+        <i data-lucide="traffic-cone" style="width:16px;height:16px;color:var(--amber);"></i> Semáforos por OC
+      </h3>
+      <!-- Plazo -->
+      <div style="margin-bottom:14px;">
+        <div style="font-size:11px;font-weight:700;color:var(--txt-2);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em;">Plazo de Entrega</div>
+        <div style="display:flex;gap:8px;">
+          <span style="flex:1;text-align:center;background:rgba(16,185,129,.15);border:1px solid rgba(16,185,129,.3);border-radius:6px;padding:6px;font-size:13px;font-weight:700;color:var(--green);">🟢 {{ semaforos.plazo.green }}</span>
+          <span style="flex:1;text-align:center;background:rgba(245,158,11,.15);border:1px solid rgba(245,158,11,.3);border-radius:6px;padding:6px;font-size:13px;font-weight:700;color:var(--amber);">🟡 {{ semaforos.plazo.yellow }}</span>
+          <span style="flex:1;text-align:center;background:rgba(244,63,94,.15);border:1px solid rgba(244,63,94,.3);border-radius:6px;padding:6px;font-size:13px;font-weight:700;color:var(--rose);">🔴 {{ semaforos.plazo.red }}</span>
+        </div>
+      </div>
+      <!-- Avance -->
+      <div style="margin-bottom:14px;">
+        <div style="font-size:11px;font-weight:700;color:var(--txt-2);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em;">Avance de Entrega</div>
+        <div style="display:flex;gap:8px;">
+          <span style="flex:1;text-align:center;background:rgba(16,185,129,.15);border:1px solid rgba(16,185,129,.3);border-radius:6px;padding:6px;font-size:13px;font-weight:700;color:var(--green);">🟢 {{ semaforos.avance.green }}</span>
+          <span style="flex:1;text-align:center;background:rgba(245,158,11,.15);border:1px solid rgba(245,158,11,.3);border-radius:6px;padding:6px;font-size:13px;font-weight:700;color:var(--amber);">🟡 {{ semaforos.avance.yellow }}</span>
+          <span style="flex:1;text-align:center;background:rgba(244,63,94,.15);border:1px solid rgba(244,63,94,.3);border-radius:6px;padding:6px;font-size:13px;font-weight:700;color:var(--rose);">🔴 {{ semaforos.avance.red }}</span>
+        </div>
+      </div>
+      <!-- Docs -->
+      <div>
+        <div style="font-size:11px;font-weight:700;color:var(--txt-2);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em;">Documentos</div>
+        <div style="display:flex;gap:8px;">
+          <span style="flex:1;text-align:center;background:rgba(16,185,129,.15);border:1px solid rgba(16,185,129,.3);border-radius:6px;padding:6px;font-size:13px;font-weight:700;color:var(--green);">🟢 {{ semaforos.docs.green }}</span>
+          <span style="flex:1;text-align:center;background:rgba(245,158,11,.15);border:1px solid rgba(245,158,11,.3);border-radius:6px;padding:6px;font-size:13px;font-weight:700;color:var(--amber);">🟡 {{ semaforos.docs.yellow }}</span>
+          <span style="flex:1;text-align:center;background:rgba(244,63,94,.15);border:1px solid rgba(244,63,94,.3);border-radius:6px;padding:6px;font-size:13px;font-weight:700;color:var(--rose);">🔴 {{ semaforos.docs.red }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Reporte mensual últimos 6 meses -->
+    <div class="card">
+      <h3 style="font-size:15px;font-weight:700;margin-bottom:18px;display:flex;align-items:center;gap:8px;">
+        <i data-lucide="bar-chart-2" style="width:16px;height:16px;color:var(--blue);"></i> Actividad Mensual (últimos 6 meses)
+      </h3>
+      <div class="table-wrap">
+        <table style="font-size:12px;">
+          <thead>
+            <tr>
+              <th>Mes</th>
+              <th style="text-align:center;">N° OC</th>
+              <th style="text-align:right;">Monto OC</th>
+              <th style="text-align:right;">Facturado</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for m in reporte_meses %}
+            <tr>
+              <td style="font-weight:600;">{{ m.mes }}</td>
+              <td style="text-align:center;">{{ m.cantidad_ocs }}</td>
+              <td style="text-align:right;color:var(--blue);">${{ m.monto_ocs|floatformat:0 }}</td>
+              <td style="text-align:right;color:var(--green);">${{ m.facturado|floatformat:0 }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── ROW 3: Top Clientes por Monto y Margen ────────────────────────── -->
+  <div style="margin-bottom:28px;">
+    <div class="card">
+      <h3 style="font-size:15px;font-weight:700;margin-bottom:18px;display:flex;align-items:center;gap:8px;">
+        <i data-lucide="users" style="width:16px;height:16px;color:var(--purple);"></i> Top Clientes — Monto &amp; Rentabilidad
+      </h3>
+      {% if clientes_margen %}
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Cliente</th>
+              <th style="text-align:center;">N° OC</th>
+              <th style="text-align:right;">Monto Total</th>
+              <th style="text-align:right;">Margen</th>
+              <th style="text-align:center;">% Margen</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for c in clientes_margen %}
+            <tr>
+              <td style="font-weight:600;">{{ c.cliente }}</td>
+              <td style="text-align:center;font-size:12px;">{{ c.total_ocs }}</td>
+              <td style="text-align:right;color:var(--blue);">${{ c.total_monto|floatformat:0 }}</td>
+              <td style="text-align:right;color:{% if c.margen < 0 %}var(--rose){% else %}var(--green){% endif %};">
+                ${{ c.margen|floatformat:0 }}
+              </td>
+              <td style="text-align:center;">
+                <span class="badge {% if c.margen_pct >= 20 %}badge-success{% elif c.margen_pct >= 5 %}badge-warning{% else %}badge-danger{% endif %}" style="font-size:11px;">
+                  {{ c.margen_pct }}%
+                </span>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+        <p style="color:var(--txt-3);font-size:13px;text-align:center;padding:20px 0;">Sin datos de clientes todavía.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- ── ROW 4: Gráficos + OC Pendientes ──────────────────────────────── -->
+  <div class="dashboard-grid-1-1">
+
+    <!-- Distribución costos -->
+    <div class="card">
+      <h3 style="margin-bottom:20px;font-size:15px;font-weight:700;display:flex;align-items:center;gap:8px;">
+        <i data-lucide="pie-chart" style="color:var(--teal);width:18px;height:18px;"></i> Distribución de Gastos
+      </h3>
+      {% if cost_by_category %}
+        <div style="height:230px;position:relative;"><canvas id="costCategoryChart"></canvas></div>
+      {% else %}
+        <div style="display:flex;align-items:center;justify-content:center;height:230px;color:var(--txt-3);font-size:14px;">
+          Sin gastos registrados.
+        </div>
+      {% endif %}
+    </div>
+
+    <!-- OC por estado -->
+    <div class="card">
+      <h3 style="margin-bottom:20px;font-size:15px;font-weight:700;display:flex;align-items:center;gap:8px;">
+        <i data-lucide="check-square" style="color:var(--blue);width:18px;height:18px;"></i> OC por Estado
+      </h3>
+      <div style="height:230px;position:relative;"><canvas id="projectStatusChart"></canvas></div>
+    </div>
+
+  </div>
+
+  <!-- ── ROW 5: OC Pendientes + Últimos Despachos ──────────────────────── -->
+  <div class="dashboard-grid-1-1">
+
+    <div class="card">
+      <h3 style="margin-bottom:16px;font-size:15px;font-weight:700;display:flex;align-items:center;gap:8px;">
+        <i data-lucide="clock" style="color:var(--rose);width:18px;height:18px;"></i> OC Pendientes (por vencer)
+      </h3>
+      {% if pending_ocs %}
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>OC</th><th>Cliente</th><th>Vencimiento</th><th style="text-align:center;">Avance</th></tr></thead>
+            <tbody>
+              {% for oc in pending_ocs %}
+              <tr>
+                <td><a href="{% url 'project_detail' oc.numero_oc %}" style="font-weight:600;color:var(--txt);">{{ oc.numero_oc|truncatechars:18 }}</a></td>
+                <td style="font-size:12px;">{{ oc.cliente }}</td>
+                <td style="font-size:12px;color:var(--txt-2);">{{ oc.fecha_compromiso|date:"d/m/Y"|default:"—" }}</td>
+                <td style="text-align:center;font-size:12px;font-weight:700;">{{ oc.porcentaje_entregado|floatformat:0 }}%</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p style="color:var(--txt-3);font-size:14px;text-align:center;padding:40px;">Sin órdenes pendientes.</p>
+      {% endif %}
+    </div>
+
+    <div class="card">
+      <h3 style="margin-bottom:16px;font-size:15px;font-weight:700;display:flex;align-items:center;gap:8px;">
+        <i data-lucide="truck" style="color:var(--green);width:18px;height:18px;"></i> Últimos Despachos
+      </h3>
+      {% if recent_deliveries %}
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Fecha</th><th>Guía</th><th>OC</th><th>Estado</th></tr></thead>
+            <tbody>
+              {% for del in recent_deliveries %}
+              <tr>
+                <td style="font-size:12px;color:var(--txt-2);">{{ del.fecha_entrega|date:"d/m/Y"|default:"—" }}</td>
+                <td><span style="font-weight:700;color:var(--blue);">{{ del.guia_despacho }}</span></td>
+                <td><a href="{% url 'project_detail' del.orden_compra.numero_oc %}" style="font-size:12px;color:var(--txt);">{{ del.orden_compra.numero_oc|truncatechars:18 }}</a></td>
+                <td>
+                  <span class="badge {% if del.estado == 'COMPLETA' %}badge-success{% elif del.estado == 'FACTURADO' %}badge-blue{% else %}badge-warning{% endif %}" style="font-size:10px;">
+                    {{ del.get_estado_display }}
+                  </span>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p style="color:var(--txt-3);font-size:14px;text-align:center;padding:40px;">Sin despachos recientes.</p>
+      {% endif %}
+    </div>
+
+  </div>
+
+</div>
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+{% if cost_by_category %}
+const costCtx = document.getElementById('costCategoryChart').getContext('2d');
+new Chart(costCtx, {
+    type: 'doughnut',
+    data: {
+        labels: [{% for item in cost_by_category %}'{{ item.categoria }}',{% endfor %}],
+        datasets: [{
+            data: [{% for item in cost_by_category %}{{ item.total }},{% endfor %}],
+            backgroundColor: ['#3B82F6','#14B8A6','#8B5CF6','#F59E0B','#F43F5E'],
+            borderWidth: 1, borderColor: '#0d1220'
+        }]
+    },
+    options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { position: 'right', labels: { color: '#F1F5F9', font: { family:'Inter', size:11 } } } }
+    }
+});
+{% endif %}
+
+const statusCtx = document.getElementById('projectStatusChart').getContext('2d');
+new Chart(statusCtx, {
+    type: 'bar',
+    data: {
+        labels: [{% for status, count in status_dict.items %}'{{ status }}',{% endfor %}],
+        datasets: [{
+            label: 'OCs',
+            data: [{% for status, count in status_dict.items %}{{ count }},{% endfor %}],
+            backgroundColor: 'rgba(59,130,246,0.4)', borderColor: '#3B82F6',
+            borderWidth: 1.5, borderRadius: 4
+        }]
+    },
+    options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+            x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color:'#94A3B8', font:{family:'Inter',size:11} } },
+            y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color:'#94A3B8', font:{family:'Inter',size:11}, stepSize:1 } }
+        }
+    }
+});
+</script>
+{% endblock %}

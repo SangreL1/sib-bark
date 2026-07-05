@@ -1,0 +1,72 @@
+{% extends 'core/base.html' %}
+{% block title %}Importar Datos — SIB Bark{% endblock %}
+
+{% block content %}
+<div class="fade-up" style="max-width:700px;margin:0 auto;">
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">Sincronización de Datos</h1>
+      <p class="page-sub">Importa o actualiza los proyectos desde los archivos Excel de Bark.</p>
+    </div>
+  </div>
+
+  <!-- Option A: Local files -->
+  <div class="card" style="margin-bottom:20px;">
+    <h3 style="font-size:15px;font-weight:700;margin-bottom:6px;display:flex;align-items:center;gap:8px;">
+      <i data-lucide="folder" style="width:16px;height:16px;color:var(--blue);"></i> Importar desde archivos locales
+    </h3>
+    <p style="font-size:13px;color:var(--txt-2);margin-bottom:20px;">
+      Usa los archivos <code style="background:rgba(255,255,255,.06);padding:2px 6px;border-radius:4px;">Control_Ordenes_Compra_Maestranza.xlsx</code> y
+      <code style="background:rgba(255,255,255,.06);padding:2px 6px;border-radius:4px;">FLUOR FMR.xlsx</code>
+      ubicados en <code style="background:rgba(255,255,255,.06);padding:2px 6px;border-radius:4px;">C:\Users\Coalfa\Desktop\FLUOR\</code>.
+    </p>
+    <form method="POST">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="local">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:18px;">
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;">
+          <input type="checkbox" name="clear_db" value="true" style="accent-color:var(--rose);">
+          <span style="color:var(--rose);">⚠️ Limpiar base de datos antes de importar (reemplaza TODO)</span>
+        </label>
+      </div>
+      <button type="submit" class="btn btn-primary">
+        <i data-lucide="download" style="width:16px;height:16px;"></i> Importar Archivos Locales
+      </button>
+    </form>
+  </div>
+
+  <!-- Option B: Upload files -->
+  <div class="card">
+    <h3 style="font-size:15px;font-weight:700;margin-bottom:6px;display:flex;align-items:center;gap:8px;">
+      <i data-lucide="upload-cloud" style="width:16px;height:16px;color:var(--teal);"></i> Subir archivos manualmente
+    </h3>
+    <p style="font-size:13px;color:var(--txt-2);margin-bottom:20px;">
+      Si los archivos están en otra ubicación, súbelos directamente aquí.
+    </p>
+    <form method="POST" enctype="multipart/form-data">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="upload">
+      <div class="form-grid-2" style="margin-bottom:14px;">
+        <div class="form-group" style="margin-bottom:0;">
+          <label class="form-label">Control Órdenes de Compra (.xlsx)</label>
+          <input type="file" name="control_file" class="form-control" accept=".xlsx">
+        </div>
+        <div class="form-group" style="margin-bottom:0;">
+          <label class="form-label">FLUOR FMR (.xlsx)</label>
+          <input type="file" name="fmr_file" class="form-control" accept=".xlsx">
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:18px;">
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;">
+          <input type="checkbox" name="clear_db" value="true" style="accent-color:var(--rose);">
+          <span style="color:var(--rose);">⚠️ Limpiar base de datos antes de importar</span>
+        </label>
+      </div>
+      <button type="submit" class="btn btn-success">
+        <i data-lucide="upload" style="width:16px;height:16px;"></i> Subir e Importar
+      </button>
+    </form>
+  </div>
+
+</div>
+{% endblock %}
