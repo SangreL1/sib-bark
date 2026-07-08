@@ -1,0 +1,216 @@
+{% extends 'core/base.html' %}
+{% load custom_filters %}
+
+{% block title %}Control de Despachos y Facturación - SIB Bark{% endblock %}
+
+{% block content %}
+<div class="row align-items-center mb-4">
+  <div class="col-md-7">
+    <h1 class="h3 m-0 text-white d-flex align-items-center gap-2">
+      <i data-lucide="truck" class="text-warning"></i> Control de Despachos y Guías por Cobrar
+    </h1>
+    <p class="text-muted m-0 mt-1">Registra y controla qué despachos se han realizado y cuáles están pendientes de facturación para evitar pérdidas.</p>
+  </div>
+  <div class="col-md-5 text-md-end mt-3 mt-md-0">
+    <div class="d-inline-flex gap-2">
+      <a href="?filtro=por_facturar{% if q %}&q={{ q }}{% endif %}" class="btn {% if filtro == 'por_facturar' %}btn-warning text-dark{% else %}btn-outline-warning border-opacity-50{% endif %} btn-sm d-inline-flex align-items-center gap-1">
+        <i data-lucide="clock" style="width:16px;height:16px;"></i> Pendientes Cobro (Por Facturar)
+      </a>
+      <a href="?filtro=facturado{% if q %}&q={{ q }}{% endif %}" class="btn {% if filtro == 'facturado' %}btn-success{% else %}btn-outline-success border-opacity-50{% endif %} btn-sm d-inline-flex align-items-center gap-1">
+        <i data-lucide="check-circle" style="width:16px;height:16px;"></i> Facturados
+      </a>
+      <a href="?filtro=todos{% if q %}&q={{ q }}{% endif %}" class="btn {% if filtro == 'todos' %}btn-secondary{% else %}btn-outline-secondary{% endif %} btn-sm">
+        Todos
+      </a>
+    </div>
+  </div>
+</div>
+
+<!-- Buscador local de despachos -->
+<div class="card bg-dark border border-secondary border-opacity-25 mb-4">
+  <div class="card-body py-3">
+    <form method="GET" class="row g-2 align-items-center">
+      <input type="hidden" name="filtro" value="{{ filtro }}">
+      <div class="col-md-9 position-relative">
+        <input type="text" name="q" value="{{ q }}" class="form-control bg-black text-white border-secondary border-opacity-50" placeholder="Buscar por número de guía, OC o cliente...">
+      </div>
+      <div class="col-md-3">
+        <button type="submit" class="btn btn-primary w-100 d-inline-flex align-items-center justify-content-center gap-1">
+          <i data-lucide="search" style="width:16px;height:16px;"></i> Filtrar Despachos
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Tabla de Control de Guías -->
+<div class="card bg-dark text-white border border-secondary border-opacity-25">
+  <div class="card-header bg-black bg-opacity-25 border-bottom border-secondary border-opacity-25 py-3">
+    <h5 class="card-title m-0 d-flex align-items-center gap-2">
+      <i data-lucide="receipt" class="text-amber"></i> Lista de Guías de Despacho ({{ entregas.count }})
+    </h5>
+  </div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-dark table-hover align-middle border-secondary border-opacity-10 mb-0" style="font-size:0.85rem;">
+        <thead>
+          <tr class="table-black">
+            <th style="padding-left: 20px;">N° Guía</th>
+            <th>Fecha Despacho</th>
+            <th>Orden de Compra</th>
+            <th>Cliente / Proyecto</th>
+            <th>Detalle del Contenido Despachado</th>
+            <th>Obs / Estado Entrega</th>
+            <th>Cobro / Facturación</th>
+            <th style="padding-right: 20px;" class="text-center font-monospace">Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for d in entregas %}
+            <tr>
+              <td style="padding-left: 20px;">
+                <span class="text-amber font-monospace fw-bold fs-6">GD-{{ d.guia_despacho|default:"S/N" }}</span>
+                {% if d.guia_file %}
+                  <a href="{{ d.guia_file.url }}" target="_blank" class="d-block text-info small" style="text-decoration: none;">
+                    <i data-lucide="download" style="width:12px;height:12px;display:inline-block;vertical-align:middle;margin-right:2px;"></i> Descargar Guía PDF
+                  </a>
+                {% endif %}
+              </td>
+              <td>{{ d.fecha_entrega|date:"d-m-Y"|default:"—" }}</td>
+              <td>
+                <a href="{% url 'project_detail' d.orden_compra.numero_oc %}" class="fw-bold text-blue" style="text-decoration:none;">
+                  {{ d.orden_compra.numero_oc }}
+                </a>
+              </td>
+              <td>
+                <strong class="text-white">{{ d.orden_compra.cliente }}</strong>
+                {% if d.orden_compra.proyecto %}
+                  <span class="d-block text-muted small">{{ d.orden_compra.proyecto }}</span>
+                {% endif %}
+              </td>
+              <td>
+                <!-- Desglose de ítems del Packing List -->
+                <div class="p-2 rounded bg-black bg-opacity-40 border border-secondary border-opacity-10" style="max-height: 120px; overflow-y: auto;">
+                  {% for pi in d.packing_list_items.all %}
+                    <div style="font-size:0.75rem;" class="mb-1 d-flex justify-content-between">
+                      <span class="text-muted">
+                        • {{ pi.item_oc.descripcion|truncatewords:6 }} 
+                        {% if pi.diametro or pi.alto_item %}
+                          <span class="text-info font-monospace">({{ pi.diametro|default:"—" }} x {{ pi.alto_item|default:"—" }})</span>
+                        {% endif %}
+                      </span>
+                      <strong class="text-white font-monospace">{{ pi.cantidad|floatformat:0 }} {{ pi.unidades|default:"EA" }}</strong>
+                    </div>
+                  {% empty %}
+                    <span class="text-muted italic small">Sin ítems detallados.</span>
+                  {% endfor %}
+                </div>
+              </td>
+              <td>
+                <span class="badge {% if d.estado == 'COMPLETA' %}bg-success{% else %}bg-warning text-dark{% endif %}">
+                  {{ d.get_estado_display }}
+                </span>
+                {% if d.observaciones %}
+                  <span class="d-block text-muted small mt-1 italic">{{ d.observaciones|truncatewords:8 }}</span>
+                {% endif %}
+              </td>
+              <td>
+                <span class="badge {% if d.estado_facturacion == 'facturado' %}bg-success{% else %}bg-danger{% endif %} text-uppercase p-2">
+                  <i data-lucide="{% if d.estado_facturacion == 'facturado' %}check{% else %}alert-circle{% endif %}" style="width:14px;height:14px;margin-right:4px;vertical-align:middle;"></i>
+                  {{ d.get_estado_facturacion_display }}
+                </span>
+                
+                <!-- Si está facturada, mostrar número de factura y botón de descarga -->
+                {% if d.facturas.all %}
+                  <div class="mt-1 small">
+                    {% for f in d.facturas.all %}
+                      <span class="d-block text-muted">Fac N° <strong class="text-white">{{ f.numero_factura }}</strong> ({{ f.monto|clp }})</span>
+                      {% if f.archivo %}
+                        <a href="{{ f.archivo.url }}" class="btn btn-outline-secondary btn-sm d-inline-flex align-items-center gap-1 mt-1" style="font-size:0.7rem;padding:2px 8px;" target="_blank">
+                          <i data-lucide="download" style="width:11px;height:11px;"></i> Descargar Factura
+                        </a>
+                      {% elif f.url_externa %}
+                        <a href="{{ f.url_externa }}" class="btn btn-outline-secondary btn-sm d-inline-flex align-items-center gap-1 mt-1" style="font-size:0.7rem;padding:2px 8px;" target="_blank">
+                          <i data-lucide="external-link" style="width:11px;height:11px;"></i> Ver Factura
+                        </a>
+                      {% endif %}
+                    {% endfor %}
+                  </div>
+                {% endif %}
+              </td>
+              <td style="padding-right: 20px;" class="text-center">
+                {% if d.estado_facturacion == 'por_facturar' %}
+                  <!-- Botón disparador para facturar rápidamente -->
+                  <button type="button" class="btn btn-warning btn-sm text-dark d-inline-flex align-items-center gap-1" data-bs-toggle="modal" data-bs-target="#facturarModal-{{ d.id }}">
+                    <i data-lucide="receipt" style="width:14px;height:14px;"></i> Facturar Guía
+                  </button>
+                {% else %}
+                  <!-- Botón para desfacturar y devolver a pendiente -->
+                  <form method="POST" class="d-inline">
+                    {% csrf_token %}
+                    <input type="hidden" name="desfacturar_entrega" value="1">
+                    <input type="hidden" name="entrega_id" value="{{ d.id }}">
+                    <button type="submit" class="btn btn-outline-danger btn-sm d-inline-flex align-items-center gap-1" onclick="return confirm('¿Desmarcar esta guía de despacho como facturada?')">
+                      <i data-lucide="rotate-ccw" style="width:14px;height:14px;"></i> Pendiente Cobro
+                    </button>
+                  </form>
+                {% endif %}
+              </td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="8" class="text-center text-muted py-5">
+                <i data-lucide="alert-circle" class="mb-3 d-block mx-auto opacity-50" style="width:36px;height:36px;color:var(--txt-3);"></i>
+                No se encontraron despachos registrados en esta categoría.
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Modales de Facturación ubicados fuera del DOM de la tabla para correcto funcionamiento en navegadores -->
+{% for d in entregas %}
+  {% if d.estado_facturacion == 'por_facturar' %}
+    <div class="modal fade" id="facturarModal-{{ d.id }}" tabindex="-1" aria-hidden="true" style="text-align: left;">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-dark border border-secondary border-opacity-50 text-white">
+          <div class="modal-header border-bottom border-secondary border-opacity-25 bg-black bg-opacity-20">
+            <h5 class="modal-title d-flex align-items-center gap-2">
+              <i data-lucide="receipt" class="text-warning"></i> Facturar Despacho GD-{{ d.guia_despacho|default:"S/N" }}
+            </h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <form method="POST">
+            {% csrf_token %}
+            <input type="hidden" name="facturar_entrega" value="1">
+            <input type="hidden" name="entrega_id" value="{{ d.id }}">
+            <div class="modal-body">
+              <p class="text-muted small">Al facturar esta guía, puedes ingresar el número de factura y el monto para que el Centro de Costos se mantenga actualizado automáticamente.</p>
+              
+              <div class="mb-3">
+                <label class="form-label small">N° Factura</label>
+                <input type="text" name="numero_factura" class="form-control bg-black text-white border-secondary border-opacity-50" placeholder="Ej. 104523" required>
+              </div>
+              <div class="mb-3">
+                <label class="form-label small">Monto Neto Facturado ($)</label>
+                <input type="number" name="monto" class="form-control bg-black text-white border-secondary border-opacity-50" placeholder="Ej. 1500000" required>
+              </div>
+              <div class="mb-3">
+                <label class="form-label small">Fecha Emisión Factura</label>
+                <input type="date" name="fecha_emision" class="form-control bg-black text-white border-secondary border-opacity-50" value="{% now 'Y-m-d' %}">
+              </div>
+            </div>
+            <div class="modal-footer border-top border-secondary border-opacity-25 bg-black bg-opacity-20">
+              <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+              <button type="submit" class="btn btn-warning btn-sm text-dark fw-bold">Marcar y Registrar Factura</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  {% endif %}
+{% endfor %}
+{% endblock %}

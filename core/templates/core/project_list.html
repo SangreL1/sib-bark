@@ -1,4 +1,5 @@
 {% extends 'core/base.html' %}
+{% load custom_filters %}
 {% block title %}Proyectos — SIB Bark{% endblock %}
 
 {% block content %}
@@ -62,15 +63,12 @@
       <table>
         <thead>
           <tr>
-            <th class="d-none d-md-table-cell">FMR</th>
             <th>Número OC</th>
             <th>Cliente</th>
             <th class="d-none d-lg-table-cell">Descripción</th>
             <th class="d-none d-md-table-cell" style="text-align:right;">Valor OC</th>
-            <th class="d-none d-md-table-cell" style="text-align:center;">% Entregado</th>
-            <th style="text-align:center;">Plazo 🚦</th>
-            <th style="text-align:center;">Avance 🚦</th>
-            <th style="text-align:center;">Docs 🚦</th>
+            <th class="d-none d-sm-table-cell" style="text-align:center;">% Entregado</th>
+            <th style="text-align:center;">Semáforos 🚦</th>
             <th>Estado</th>
             <th class="d-none d-md-table-cell">Fecha Comp.</th>
             <th style="text-align:center;">Acciones</th>
@@ -79,77 +77,76 @@
         <tbody>
           {% for oc in page_obj %}
           <tr>
-            <!-- FMR codes -->
-            <td class="d-none d-md-table-cell">
-              {% for fmr in oc.fmrs.all %}
-                <span class="badge badge-blue" style="margin:1px;">{{ fmr.fmr_code }}</span>
-              {% empty %}
-                <span style="color:var(--txt-3);font-size:12px;">—</span>
-              {% endfor %}
-            </td>
-
-            <!-- OC number -->
+            <!-- OC number & FMR badges integrated -->
             <td>
-              <a href="{% url 'project_detail' oc.numero_oc %}" style="font-weight:600;font-size:13px;color:var(--txt);">
-                {{ oc.numero_oc|truncatechars:28 }}
+              <a href="{% url 'project_detail' oc.numero_oc %}" style="font-weight:700;font-size:13.5px;color:var(--txt);">
+                {{ oc.numero_oc }}
               </a>
+              {% if oc.fmrs.all %}
+              <div style="display:flex; flex-wrap:wrap; gap:3px; margin-top:4px;">
+                {% for fmr in oc.fmrs.all %}
+                  <span class="badge badge-blue" style="font-size:9.5px; padding:1px 5px; text-transform:none;">FMR {{ fmr.fmr_code }}</span>
+                {% endfor %}
+              </div>
+              {% endif %}
             </td>
 
-            <td style="font-size:13px;">{{ oc.cliente }}</td>
-            <td class="d-none d-lg-table-cell" style="font-size:12px;color:var(--txt-2);max-width:200px;">{{ oc.descripcion|truncatechars:50|default:"—" }}</td>
-
-            <!-- Value -->
-            <td class="d-none d-md-table-cell" style="text-align:right;font-weight:600;font-size:13px;">
-              {% if oc.valor_total %}${{ oc.valor_total|floatformat:0 }}{% else %}—{% endif %}
+            <td style="font-size:13px; font-weight: 500;">{{ oc.cliente }}</td>
+            <td class="d-none d-lg-table-cell" style="font-size:12px;color:var(--txt-2);max-width:260px;">
+              <span title="{{ oc.descripcion|default:'' }}" style="cursor:help;">
+                {{ oc.descripcion|truncatewords:8|default:"—" }}
+              </span>
             </td>
 
-            <!-- % Delivered with bar -->
-            <td class="d-none d-md-table-cell" style="text-align:center;min-width:100px;">
-              <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
+            <!-- Value with Chilean Peso filtering -->
+            <td class="d-none d-md-table-cell" style="text-align:right;font-weight:700;font-size:13px;color:var(--green);">
+              {{ oc.valor_total|clp }}
+            </td>
+
+            <!-- % Delivered with corrected bar (floatformat:0) -->
+            <td class="d-none d-sm-table-cell" style="text-align:center;min-width:105px;">
+              <div style="display:flex;flex-direction:column;align-items:center;gap:3px;">
                 {% if oc.estado == 'Facturado' or oc.estado == 'Cerrado' %}
-                  <span style="font-size:12px;font-weight:700;">100%</span>
+                  <span style="font-size:11px;font-weight:700;">100%</span>
                   <div class="progress-wrap" style="width:70px;">
                     <div class="progress-fill green" style="width:100%;"></div>
                   </div>
                 {% else %}
-                  <span style="font-size:12px;font-weight:700;">{{ oc.porcentaje_entregado|floatformat:0 }}%</span>
+                  <span style="font-size:11px;font-weight:700;">{{ oc.porcentaje_entregado|floatformat:0 }}%</span>
                   <div class="progress-wrap" style="width:70px;">
-                    <div class="progress-fill {{ oc.semaforo_avance }}" style="width:{{ oc.porcentaje_entregado }}%;"></div>
+                    <div class="progress-fill {{ oc.semaforo_avance }}" style="width:{{ oc.porcentaje_entregado|floatformat:0 }}%;"></div>
                   </div>
                 {% endif %}
               </div>
             </td>
 
-            <!-- Semaphore: Plazo -->
-            <td style="text-align:center;">
-              <div class="semaforo-cell {{ oc.semaforo_plazo }}">
-                <span class="semaforo-dot {{ oc.semaforo_plazo }}"></span>
+            <!-- Semaphore: Consolidated single indicator -->
+            <td style="text-align:center; min-width: 90px;">
+              <div style="display:flex; gap:8px; align-items:center; justify-content:center;">
+                <!-- Plazo -->
                 {% if oc.dias_restantes_calculado is not None %}
-                  {% if oc.semaforo_plazo == 'grey' %}—
-                  {% elif oc.dias_restantes_calculado < 0 %}{{ oc.dias_restantes_calculado }}d
-                  {% else %}+{{ oc.dias_restantes_calculado }}d
+                  {% if oc.semaforo_plazo == 'grey' %}
+                    <span class="semaforo-dot grey" title="Plazo: Cerrado"></span>
+                  {% elif oc.dias_restantes_calculado < 0 %}
+                    <span class="semaforo-dot red" title="Plazo: Atrasado {{ oc.dias_restantes_calculado }} días"></span>
+                  {% elif oc.dias_restantes_calculado <= 5 %}
+                    <span class="semaforo-dot yellow" title="Plazo: Próximo a vencer ({{ oc.dias_restantes_calculado }}d)"></span>
+                  {% else %}
+                    <span class="semaforo-dot green" title="Plazo: A tiempo ({{ oc.dias_restantes_calculado }}d)"></span>
                   {% endif %}
-                {% else %}—{% endif %}
-              </div>
-            </td>
-
-            <!-- Semaphore: Avance -->
-            <td style="text-align:center;">
-              <div class="semaforo-cell {{ oc.semaforo_avance }}">
-                <span class="semaforo-dot {{ oc.semaforo_avance }}"></span>
-              </div>
-            </td>
-
-            <!-- Semaphore: Docs -->
-            <td style="text-align:center;">
-              <div class="semaforo-cell {{ oc.semaforo_docs }}">
-                <span class="semaforo-dot {{ oc.semaforo_docs }}"></span>
+                {% else %}
+                  <span class="semaforo-dot grey" title="Plazo: Sin fecha de entrega"></span>
+                {% endif %}
+                <!-- Avance -->
+                <span class="semaforo-dot {{ oc.semaforo_avance }}" title="Avance: {{ oc.porcentaje_entregado|floatformat:0 }}% despachado"></span>
+                <!-- Docs -->
+                <span class="semaforo-dot {{ oc.semaforo_docs }}" title="Documentos: {% if oc.semaforo_docs == 'green' %}Completo (OC + Planos + FMR){% elif oc.semaforo_docs == 'yellow' %}Incompleto (Falta Plano o FMR){% else %}Falta OC / Sin docs{% endif %}"></span>
               </div>
             </td>
 
             <!-- Estado badge -->
             <td>
-              <span class="badge {% if oc.estado == 'Facturado' or oc.estado == 'Cerrado' %}badge-success{% elif oc.estado == 'En proceso' %}badge-warning{% elif oc.estado == 'Cancelado' %}badge-danger{% else %}badge-blue{% endif %}">
+              <span class="badge {% if oc.estado == 'Facturado' or oc.estado == 'Cerrado' %}badge-success{% elif oc.estado == 'En proceso' %}badge-warning{% elif oc.estado == 'Cancelado' %}badge-danger{% else %}badge-blue{% endif %}" style="font-size: 10.5px;">
                 {{ oc.estado }}
               </span>
             </td>
@@ -159,10 +156,10 @@
             <!-- Actions -->
             <td style="text-align:center;">
               <div style="display:flex;gap:6px;justify-content:center;">
-                <a href="{% url 'project_detail' oc.numero_oc %}" class="btn btn-ghost btn-sm" title="Ver ficha" style="padding:0 8px;">
+                <a href="{% url 'project_detail' oc.numero_oc %}" class="btn btn-ghost btn-sm" title="Ver detalle" style="padding:0 8px; min-height: 32px;">
                   <i data-lucide="eye" style="width:14px;height:14px;"></i>
                 </a>
-                <a href="{% url 'oc_edit' oc.numero_oc %}" class="btn btn-ghost btn-sm" title="Editar" style="padding:0 8px;">
+                <a href="{% url 'oc_edit' oc.numero_oc %}" class="btn btn-ghost btn-sm" title="Editar" style="padding:0 8px; min-height: 32px;">
                   <i data-lucide="pencil" style="width:14px;height:14px;"></i>
                 </a>
               </div>
@@ -170,7 +167,7 @@
           </tr>
           {% empty %}
           <tr>
-            <td colspan="12" style="text-align:center;padding:48px;color:var(--txt-3);">
+            <td colspan="9" style="text-align:center;padding:48px;color:var(--txt-3);">
               <i data-lucide="inbox" style="width:32px;height:32px;margin-bottom:10px;display:block;margin-left:auto;margin-right:auto;"></i>
               No se encontraron proyectos con los filtros aplicados.
             </td>

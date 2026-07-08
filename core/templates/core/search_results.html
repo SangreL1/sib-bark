@@ -6,18 +6,18 @@
   <div class="page-header">
     <div>
       <h1 class="page-title">Resultados de Búsqueda</h1>
-      <p class="page-sub">{{ results_oc.count|add:results_fmr.count }} resultado{{ results_oc.count|add:results_fmr.count|pluralize }} para «{{ query }}»</p>
+      <p class="page-sub">Para «{{ query }}»</p>
     </div>
     <a href="{% url 'project_list' %}" class="btn btn-ghost btn-sm">
       <i data-lucide="layout-list" style="width:14px;height:14px;"></i> Ver todos
     </a>
   </div>
 
-  {% if not results_oc and not results_fmr and query %}
+  {% if not results_oc and not results_fmr and not results_cotizacion and not results_guia and query %}
     <div class="card" style="text-align:center;padding:60px 24px;">
       <i data-lucide="search-x" style="width:40px;height:40px;margin-bottom:14px;color:var(--txt-3);"></i>
       <h3 style="font-size:18px;font-weight:700;margin-bottom:8px;">Sin resultados</h3>
-      <p style="color:var(--txt-2);">No se encontró ningún proyecto con «{{ query }}».<br>Intenta buscar por número de OC, FMR, guía de despacho, factura o cliente.</p>
+      <p style="color:var(--txt-2);">No se encontró ningún resultado con «{{ query }}».<br>Intenta buscar por número de OC, FMR, cotización, guía de despacho, factura o cliente.</p>
     </div>
   {% endif %}
 
@@ -58,7 +58,7 @@
 
   <!-- FMR Results -->
   {% if results_fmr %}
-  <div>
+  <div style="margin-bottom:28px;">
     <h3 style="font-size:14px;font-weight:700;color:var(--txt-2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:14px;">
       <i data-lucide="hash" style="width:14px;height:14px;"></i> Registros FMR ({{ results_fmr.count }})
     </h3>
@@ -95,6 +95,68 @@
   </div>
   {% endif %}
 
+  <!-- Cotizaciones -->
+  {% if results_cotizacion %}
+  <div style="margin-bottom:28px;">
+    <h3 style="font-size:14px;font-weight:700;color:var(--txt-2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:14px;">
+      <i data-lucide="file-plus" style="width:14px;height:14px;"></i> Cotizaciones ({{ results_cotizacion.count }})
+    </h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>N° Cot.</th><th>Fecha</th><th>Razón Social</th><th>Cliente ID</th><th>Total</th><th>Acciones</th>
+        </tr></thead>
+        <tbody>
+          {% for cot in results_cotizacion %}
+          <tr>
+            <td><strong>{{ cot.numero_cotizacion|stringformat:"05d" }}</strong></td>
+            <td style="font-size:12px;">{{ cot.fecha|date:"d/m/Y" }}</td>
+            <td style="font-size:12px;">{{ cot.razon_social|default:"—" }}</td>
+            <td style="font-size:12px;">{{ cot.cliente_id|default:"—" }}</td>
+            <td style="font-size:12px;" class="font-monospace">${{ cot.total|floatformat:0 }}</td>
+            <td>
+              <a href="{% url 'cotizacion_detail' cot.id %}" class="btn btn-ghost btn-sm" style="padding:0 8px; min-height:36px;">Ver</a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Guías de Despacho -->
+  {% if results_guia %}
+  <div style="margin-bottom:28px;">
+    <h3 style="font-size:14px;font-weight:700;color:var(--txt-2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:14px;">
+      <i data-lucide="truck" style="width:14px;height:14px;"></i> Guías de Despacho ({{ results_guia.count }})
+    </h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>N° Guía</th><th>Fecha Emisión</th><th>Receptor</th><th>OC</th><th>Acciones</th>
+        </tr></thead>
+        <tbody>
+          {% for guia in results_guia %}
+          <tr>
+            <td><strong>{{ guia.numero_guia }}</strong></td>
+            <td style="font-size:12px;">{{ guia.fecha_emision|date:"d/m/Y" }}</td>
+            <td style="font-size:12px;">{{ guia.receptor_nombre|default:"—" }}</td>
+            <td style="font-size:12px;">
+              {% if guia.entrega.orden_compra %}
+                <a href="{% url 'project_detail' guia.entrega.orden_compra.numero_oc %}">{{ guia.entrega.orden_compra.numero_oc }}</a>
+              {% else %}—{% endif %}
+            </td>
+            <td>
+              <a href="{% url 'guia_detail' guia.entrega.orden_compra.numero_oc guia.entrega.id %}" class="btn btn-ghost btn-sm" style="padding:0 8px; min-height:36px;">Ver</a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
 
 </div>
 {% endblock %}

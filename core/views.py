@@ -1,8 +1,20 @@
 import os
+import io
+import csv
+import openpyxl
+from openpyxl.styles import Font, PatternFill, Alignment
 import pandas as pd
 from decimal import Decimal
 from datetime import datetime
 
+from django.http import HttpResponse
+import json
+import re
+import datetime
+import openpyxl
+import pdfplumber
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
 from django.shortcuts import render, get_object_or_404, redirect
 from django.db.models import Sum, Count, Q
 from django.contrib import messages
@@ -11,8 +23,17 @@ from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.utils import timezone
 
-from .models import OrdenCompra, FMR, Entrega, Costo, Trazabilidad, ItemOC, PackingListItem, Factura, CostoMaterial, CostoManoObra
-from .forms import OrdenCompraForm, OrdenCompraEditForm, FMRForm, EntregaForm, CostoForm, ItemOCForm, PackingListItemForm, FacturaForm, CostoMaterialForm, CostoManoObraForm
+from .models import (
+    OrdenCompra, FMR, Entrega, Costo, Trazabilidad, ItemOC, PackingListItem, Factura,
+    CostoMaterial, CostoManoObra, Cargo, ManoDeObra, MateriaPrima, PackingList,
+    Cotizacion, ItemCotizacion, GuiaDespacho, ItemGuia,
+)
+from .forms import (
+    OrdenCompraForm, OrdenCompraEditForm, FMRForm, EntregaForm, CostoForm, ItemOCForm,
+    PackingListItemForm, FacturaForm, CostoMaterialForm, CostoManoObraForm,
+    MateriaPrimaForm, ManoDeObraForm, PackingListForm,
+    CotizacionForm, ItemCotizacionForm, GuiaDespachoForm, ItemGuiaForm,
+)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -236,6 +257,8 @@ def search(request):
     query = request.GET.get('q', '').strip()
     results_oc = []
     results_fmr = []
+    results_cotizacion = []
+    results_guia = []
 
     if query:
         results_oc = OrdenCompra.objects.filter(
@@ -244,7 +267,8 @@ def search(request):
             Q(proyecto__icontains=query) |
             Q(descripcion__icontains=query) |
             Q(guia_despacho_resumen__icontains=query) |
-            Q(factura_resumen__icontains=query)
+            Q(factura_resumen__icontains=query) |
+            Q(cotizaciones__numero_cotizacion__icontains=query)
         ).distinct()
 
         results_fmr = FMR.objects.filter(
@@ -254,16 +278,31 @@ def search(request):
             Q(cotizacion__icontains=query)
         ).distinct()
 
-        if len(results_oc) == 1 and len(results_fmr) == 0:
+        results_cotizacion = Cotizacion.objects.filter(
+            Q(numero_cotizacion__icontains=query) |
+            Q(razon_social__icontains=query) |
+            Q(cliente_id__icontains=query)
+        ).distinct()
+
+        results_guia = GuiaDespacho.objects.filter(
+            Q(numero_guia__icontains=query) |
+            Q(receptor_nombre__icontains=query)
+        ).distinct()
+
+        if (len(results_oc) == 1 and len(results_fmr) == 0
+                and len(results_cotizacion) == 0 and len(results_guia) == 0):
             return redirect('project_detail', numero_oc=results_oc[0].numero_oc)
         elif len(results_fmr) == 1 and len(results_oc) == 0:
             if results_fmr[0].orden_compra:
                 return redirect('project_detail', numero_oc=results_fmr[0].orden_compra.numero_oc)
-        elif len(results_oc) == 1 and len(results_fmr) == 1:
-            if results_fmr[0].orden_compra == results_oc[0]:
-                return redirect('project_detail', numero_oc=results_oc[0].numero_oc)
 
-    context = {'query': query, 'results_oc': results_oc, 'results_fmr': results_fmr}
+    context = {
+        'query': query,
+        'results_oc': results_oc,
+        'results_fmr': results_fmr,
+        'results_cotizacion': results_cotizacion,
+        'results_guia': results_guia,
+    }
     return render(request, 'core/search_results.html', context)
 
 
@@ -291,6 +330,82 @@ def oc_create(request):
                 f"Orden de Compra {oc.numero_oc} registrada en el sistema.", 
                 request.user
             )
+            
+            # Auto-save de ítems BOM extraídos del PDF
+            items_json = request.POST.get('items_extraidos_json')
+            import traceback
+            try:
+                with open("debug_items_import.txt", "w") as dbg_file:
+                    dbg_file.write(f"POST received. Has items_extraidos_json: {bool(items_json)}\n")
+                    dbg_file.write(f"Length of JSON String: {len(items_json) if items_json else 0}\n")
+                    if items_json:
+                        dbg_file.write(f"JSON Content preview: {items_json[:200]}\n")
+            except:
+                pass
+
+            if items_json:
+                import json
+                try:
+                    items_list = json.loads(items_json)
+                    with open("debug_items_import.txt", "a") as dbg_file:
+                        dbg_file.write(f"JSON loaded! Count: {len(items_list)}\n")
+                    for data in items_list:
+                        # Clean numbers safely
+                        try:
+                            c = str(data.get('cantidad', '0')).replace(',', '').strip()
+                            c = float(c) if c else 0.0
+                        except: c = 0.0
+                        
+                        try:
+                            pu = str(data.get('precio_unitario', '0')).replace(',', '').strip()
+                            pu = float(pu) if pu else 0.0
+                        except: pu = 0.0
+                        
+                        try:
+                            pt = str(data.get('precio_total', '0')).replace(',', '').strip()
+                            pt = float(pt) if pt else 0.0
+                        except: pt = 0.0
+
+                        try:
+                            # Try to parse e.g., '08Jul26'
+                            fe_str = data.get('fecha_entrega', '')
+                            if fe_str:
+                                import datetime
+                                d = datetime.datetime.strptime(fe_str, "%d%b%y")
+                                fe = d.strftime("%Y-%m-%d")
+                            else:
+                                fe = None
+                        except:
+                            fe = None
+
+                        try:
+                            ItemOC.objects.create(
+                                orden_compra=oc,
+                                linea=str(data.get('linea', 1))[:50],
+                                item_code=str(data.get('item_code', ''))[:100],
+                                codigo=str(data.get('item_code', ''))[:100], # Guardamos codigo plano como item_code
+                                size_code=str(data.get('size_code', ''))[:100],
+                                descripcion=str(data.get('descripcion', ''))[:255],
+                                cantidad=c,
+                                unidad=str(data.get('uom', 'EA'))[:20],
+                                uom=str(data.get('uom', 'EA'))[:100],
+                                precio_unitario=pu,
+                                precio_total=pt,
+                                fecha_entrega=fe
+                            )
+                            with open("debug_items_import.txt", "a") as dbg_file:
+                                dbg_file.write(f"Success creating item: {data.get('item_code', '')}\n")
+                        except Exception as inner_e:
+                            with open("debug_items_import.txt", "a") as dbg_file:
+                                dbg_file.write(f"ERROR creating specific item {data.get('item_code', '')}: {str(inner_e)}\n")
+
+                    if items_list:
+                        messages.success(request, f'Se cargaron automáticamente {len(items_list)} ítems desde el documento.')
+                except Exception as e:
+                    with open("debug_items_import.txt", "a") as dbg_file:
+                        dbg_file.write(f"ERROR parsing items JSON or loop: {str(e)}\n{traceback.format_exc()}\n")
+                    messages.warning(request, f'Hubo un problema cargando los materiales automáticamente: {e}')
+
             messages.success(request, f'Orden de Compra {oc.numero_oc} creada exitosamente.')
             return redirect('project_detail', numero_oc=oc.numero_oc)
         else:
@@ -340,19 +455,19 @@ def project_detail(request, numero_oc):
     costs_general_total = costs.aggregate(total=Sum('monto'))['total'] or Decimal('0.00')
 
     # Costos detallados de materiales
-    material_costs = project.costos_materiales.all()
-    material_total = sum(mc.total for mc in material_costs)
+    material_costs = project.materias_primas.all()
+    material_total = project.costo_total_materiales
 
     # Costos detallados de mano de obra
-    mano_obra_costs = project.costos_mano_obra.all()
-    mano_obra_total = sum(moc.total for moc in mano_obra_costs)
+    mano_obra_costs = project.manos_de_obra.select_related('cargo').all()
+    mano_obra_total = project.costo_total_mano_obra
 
     # Gran total costos (general + materiales + mano de obra)
-    costs_total = costs_general_total + material_total + mano_obra_total
+    costs_total = costs_general_total + project.costo_total_trabajo
 
     budget = project.valor_total or Decimal('0.00')
-    margin = budget - costs_total
-    margin_pct = float(margin / budget * 100) if budget > 0 else 0
+    margin = project.utilidad_real
+    margin_pct = project.porcentaje_utilidad
     budget_used_pct = float(costs_total / budget * 100) if budget > 0 else 0
 
     fmrs = project.fmrs.all()
@@ -361,12 +476,12 @@ def project_detail(request, numero_oc):
     trazabilidades = project.trazabilidades.all().order_by('-fecha_hora')
 
     # ── CALCULOS POR KILO (BOM) ──────────────────────────────────────────────
-    total_weight = sum(item.peso_total_kg for item in items)
+    total_weight = project.peso_total_kg
     items_total_value = sum(item.valor_total for item in items)
 
     # Cálculos detallados por kilo
-    costo_por_kilo = costs_total / total_weight if total_weight > 0 else Decimal('0.00')
-    utilidad_por_kilo = margin / total_weight if total_weight > 0 else Decimal('0.00')
+    costo_por_kilo = project.costo_por_kilo
+    utilidad_por_kilo = project.utilidad_por_kilo
 
     # Formularios
     entrega_form = EntregaForm()
@@ -375,9 +490,9 @@ def project_detail(request, numero_oc):
     item_form = ItemOCForm()
     packing_list_form = PackingListItemForm(orden_compra=project)
     
-    # Nuevos formularios detallados
-    costo_material_form = CostoMaterialForm(initial={'fecha_compra': timezone.now().date()})
-    costo_mano_obra_form = CostoManoObraForm()
+    # Nuevos formularios detallados (asociados a nuevos modelos MateriaPrima y ManoDeObra)
+    costo_material_form = MateriaPrimaForm()
+    costo_mano_obra_form = ManoDeObraForm()
 
     context = {
         'project': project,
@@ -897,16 +1012,19 @@ def delete_packing_item(request, numero_oc, item_id):
 def add_cost_material(request, numero_oc):
     if request.method == 'POST':
         project = get_object_or_404(OrdenCompra, numero_oc=numero_oc)
-        form = CostoMaterialForm(request.POST)
+        form = MateriaPrimaForm(request.POST)
         if form.is_valid():
             mat = form.save(commit=False)
             mat.orden_compra = project
+            if not mat.cantidad:
+                # Si no se ingresa cantidad, usar total fijado directamente
+                mat.total = form.cleaned_data.get('total') or mat.valor_unitario
             mat.save()
             
             registrar_trazabilidad(
                 project,
                 "Compra de Material",
-                f"Se compró '{mat.producto}' (Cant: {mat.cantidad} | Unit: ${mat.valor_unitario:,.0f} | Total: ${mat.total:,.0f}) de {mat.proveedor or 'S/P'}.",
+                f"Se compró materia prima '{mat.producto}' (Cant: {mat.cantidad or '—'} | Unit: ${mat.valor_unitario:,.0f} | Total: ${mat.total:,.0f}).",
                 request.user
             )
             messages.success(request, f"✅ Material '{mat.producto}' registrado exitosamente.")
@@ -918,12 +1036,12 @@ def add_cost_material(request, numero_oc):
 @login_required
 def delete_cost_material(request, numero_oc, item_id):
     project = get_object_or_404(OrdenCompra, numero_oc=numero_oc)
-    mat = get_object_or_404(CostoMaterial, id=item_id, orden_compra=project)
+    mat = get_object_or_404(MateriaPrima, id=item_id, orden_compra=project)
     
     registrar_trazabilidad(
         project,
         "Eliminación de Material",
-        f"Se eliminó registro de compra de '{mat.producto}' por ${mat.total:,.0f}.",
+        f"Se eliminó registro de materia prima '{mat.producto}' por ${mat.total:,.0f}.",
         request.user
     )
     mat.delete()
@@ -935,7 +1053,7 @@ def delete_cost_material(request, numero_oc, item_id):
 def add_cost_mano_obra(request, numero_oc):
     if request.method == 'POST':
         project = get_object_or_404(OrdenCompra, numero_oc=numero_oc)
-        form = CostoManoObraForm(request.POST)
+        form = ManoDeObraForm(request.POST)
         if form.is_valid():
             mo = form.save(commit=False)
             mo.orden_compra = project
@@ -944,10 +1062,10 @@ def add_cost_mano_obra(request, numero_oc):
             registrar_trazabilidad(
                 project,
                 "Costo de Mano de Obra",
-                f"Se registró '{mo.nombre_cargo}' (Trabajadores: {mo.cantidad_trabajadores} | Horas Totales: {mo.horas_totales} | Total: ${mo.total:,.0f}).",
+                f"Se registró mano de obra para '{mo.cargo.nombre}' (Días: {mo.dias} | Horas/d: {mo.horas} | Trab: {mo.cantidad_trabajadores} | Total: ${mo.total:,.0f}).",
                 request.user
             )
-            messages.success(request, f"✅ Mano de Obra para '{mo.nombre_cargo}' registrada exitosamente.")
+            messages.success(request, f"✅ Mano de Obra para '{mo.cargo.nombre}' registrada exitosamente.")
         else:
             messages.error(request, f"Error al registrar mano de obra: {form.errors}")
     return redirect('project_detail', numero_oc=numero_oc)
@@ -956,14 +1074,1475 @@ def add_cost_mano_obra(request, numero_oc):
 @login_required
 def delete_cost_mano_obra(request, numero_oc, item_id):
     project = get_object_or_404(OrdenCompra, numero_oc=numero_oc)
-    mo = get_object_or_404(CostoManoObra, id=item_id, orden_compra=project)
+    mo = get_object_or_404(ManoDeObra, id=item_id, orden_compra=project)
     
     registrar_trazabilidad(
         project,
         "Eliminación de Mano de Obra",
-        f"Se eliminó registro de mano de obra de '{mo.nombre_cargo}' por ${mo.total:,.0f}.",
+        f"Se eliminó registro de mano de obra de '{mo.cargo.nombre}' por ${mo.total:,.0f}.",
         request.user
     )
     mo.delete()
     messages.success(request, "🗑️ Registro de mano de obra eliminado.")
     return redirect('project_detail', numero_oc=numero_oc)
+
+
+# VISTAS DE COSTEO DETALLADO / RENDICIÓN Y PACKING LISTS
+
+@login_required
+def project_rendicion(request, numero_oc):
+    project = get_object_or_404(OrdenCompra, numero_oc=numero_oc)
+    manos_obra = project.manos_de_obra.select_related('cargo').all()
+    materias_primas = project.materias_primas.all()
+    cargos = Cargo.objects.all()
+    
+    context = {
+        'project': project,
+        'manos_obra': manos_obra,
+        'materias_primas': materias_primas,
+        'cargos': cargos,
+    }
+    return render(request, 'core/project_rendicion.html', context)
+
+
+@login_required
+def add_materia_prima(request, numero_oc):
+    if request.method == 'POST':
+        project = get_object_or_404(OrdenCompra, numero_oc=numero_oc)
+        producto = request.POST.get('producto')
+        cantidad = request.POST.get('cantidad')
+        valor_unitario = request.POST.get('valor_unitario') or 0
+        total_p = request.POST.get('total')
+        
+        qty = Decimal(cantidad) if (cantidad and cantidad.strip()) else None
+        val = Decimal(valor_unitario)
+        
+        mp = MateriaPrima(
+            orden_compra=project,
+            producto=producto,
+            cantidad=qty,
+            valor_unitario=val
+        )
+        if qty is None:
+            mp.total = Decimal(total_p) if (total_p and total_p.strip()) else val
+        mp.save()
+        
+        registrar_trazabilidad(
+            project,
+            "Carga de Materia Prima (Rendición)",
+            f"Se cargó materia prima '{mp.producto}' por un total de ${mp.total:,.0f}.",
+            request.user
+        )
+        messages.success(request, f"✅ Materia prima '{mp.producto}' registrada con éxito.")
+    return redirect('project_rendicion', numero_oc=numero_oc)
+
+
+@login_required
+def delete_materia_prima(request, numero_oc, item_id):
+    project = get_object_or_404(OrdenCompra, numero_oc=numero_oc)
+    mp = get_object_or_404(MateriaPrima, id=item_id, orden_compra=project)
+    
+    registrar_trazabilidad(
+        project,
+        "Eliminación Materia Prima (Rendición)",
+        f"Se eliminó '{mp.producto}' con costo total ${mp.total:,.0f}.",
+        request.user
+    )
+    mp.delete()
+    messages.success(request, "🗑️ Registro de materia prima eliminado.")
+    return redirect('project_rendicion', numero_oc=numero_oc)
+
+
+@login_required
+def add_mano_obra_detallada(request, numero_oc):
+    if request.method == 'POST':
+        project = get_object_or_404(OrdenCompra, numero_oc=numero_oc)
+        cargo_id = request.POST.get('cargo')
+        cargo_obj = get_object_or_404(Cargo, id=cargo_id)
+        dias = int(request.POST.get('dias') or 1)
+        horas = int(request.POST.get('horas') or 8)
+        cantidad_trabajadores = int(request.POST.get('cantidad_trabajadores') or 1)
+        horas_extra = int(request.POST.get('horas_extra') or 0)
+        
+        mo = ManoDeObra(
+            orden_compra=project,
+            cargo=cargo_obj,
+            dias=dias,
+            horas=horas,
+            cantidad_trabajadores=cantidad_trabajadores,
+            horas_extra=horas_extra
+        )
+        mo.save()
+        
+        registrar_trazabilidad(
+            project,
+            "Carga Mano de Obra (Rendición)",
+            f"Se cargó '{mo.cargo.nombre}' por total ${mo.total:,.0f}.",
+            request.user
+        )
+        messages.success(request, f"✅ Mano de obra para '{mo.cargo.nombre}' registrada.")
+    return redirect('project_rendicion', numero_oc=numero_oc)
+
+
+@login_required
+def delete_mano_obra_detallada(request, numero_oc, item_id):
+    project = get_object_or_404(OrdenCompra, numero_oc=numero_oc)
+    mo = get_object_or_404(ManoDeObra, id=item_id, orden_compra=project)
+    
+    registrar_trazabilidad(
+        project,
+        "Eliminación Mano de Obra (Rendición)",
+        f"Se eliminó '{mo.cargo.nombre}' por total ${mo.total:,.0f}.",
+        request.user
+    )
+    mo.delete()
+    messages.success(request, "🗑️ Registro de mano de obra detallada eliminado.")
+    return redirect('project_rendicion', numero_oc=numero_oc)
+
+
+# WEASYPRINT / REPORTLAB PACKING LIST
+
+from reportlab.lib.pagesizes import letter
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, KeepTogether
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib import colors
+from django.http import HttpResponse
+
+@login_required
+def generate_packing_list_pdf(request, packing_list_id):
+    pl = get_object_or_404(PackingList, id=packing_list_id)
+    
+    response = HttpResponse(content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="packing_list_{pl.numero_correlativo}.pdf"'
+    
+    # Crear documento PDF
+    doc = SimpleDocTemplate(response, pagesize=letter, rightMargin=40, leftMargin=40, topMargin=40, bottomMargin=40)
+    story = []
+    
+    styles = getSampleStyleSheet()
+    
+    title_style = ParagraphStyle(
+        'TitleStyle',
+        parent=styles['Heading1'],
+        fontName='Helvetica-Bold',
+        fontSize=15,
+        leading=18,
+        textColor=colors.HexColor('#0d1220'),
+        alignment=1 # Centro
+    )
+    
+    header_style = ParagraphStyle(
+        'HeaderStyle',
+        parent=styles['Normal'],
+        fontName='Helvetica-Bold',
+        fontSize=9,
+        leading=11,
+        textColor=colors.white
+    )
+    
+    body_style = ParagraphStyle(
+        'BodyStyle',
+        parent=styles['Normal'],
+        fontName='Helvetica',
+        fontSize=8.5,
+        leading=10.5,
+        textColor=colors.HexColor('#333333')
+    )
+
+    # 1. Membrete e Información
+    empresa_info = f"<b>{pl.empresa}</b><br/>Giro: Maestranza y Fabricaciones Metálicas<br/>Dir: {pl.direccion}<br/>Correo: {pl.correo}<br/>Fono: {pl.telefono}"
+    documento_info = f"<font color='#0D1220'>Packing List N° {pl.numero_correlativo:05d}</font><br/><br/><b>CONTROL DE CALIDAD<br/>PACKING LIST</b>"
+    
+    empresa_data = [
+        [
+            Paragraph(empresa_info, body_style),
+            Paragraph(documento_info, title_style)
+        ]
+    ]
+    empresa_table = Table(empresa_data, colWidths=[250, 280])
+    empresa_table.setStyle(TableStyle([
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 10),
+    ]))
+    story.append(empresa_table)
+    story.append(Spacer(1, 10))
+    
+    # 2. Información del Cliente
+    cliente_data = [
+        [
+            Paragraph(f"<b>Cliente:</b> {pl.nombre_cliente}", body_style),
+            Paragraph(f"<b>Fecha Orden:</b> {pl.fecha_orden.strftime('%d-%m-%Y') if pl.fecha_orden else 'N/A'}", body_style)
+        ],
+        [
+            Paragraph(f"<b>N° OC Asociada:</b> {pl.orden_compra.numero_oc}", body_style),
+            Paragraph(f"<b>Fecha Envío:</b> {pl.fecha_envio.strftime('%d-%m-%Y') if pl.fecha_envio else 'N/A'}", body_style)
+        ]
+    ]
+    if pl.entrega:
+        cliente_data.append([
+            Paragraph(f"<b>Guía Despacho:</b> {pl.entrega.guia_despacho or 'N/A'}", body_style),
+            Paragraph("", body_style)
+        ])
+        
+    cliente_table = Table(cliente_data, colWidths=[265, 265])
+    cliente_table.setStyle(TableStyle([
+        ('BOX', (0,0), (-1,-1), 1, colors.HexColor('#dddddd')),
+        ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#f9f9f9')),
+        ('PADDING', (0,0), (-1,-1), 6),
+    ]))
+    story.append(cliente_table)
+    story.append(Spacer(1, 15))
+    
+    # 3. Datos de la tabla de Ítems — cabeceras según tipo_medida
+    col_m1 = pl.col_medida_1  # 'Ø' o 'L'
+    col_m2 = pl.col_medida_2  # 'ALTO' o 'H'
+    table_data = [[
+        Paragraph('Ítem / Descripción', header_style),
+        Paragraph('Modelo Soporte', header_style),
+        Paragraph(col_m1, header_style),
+        Paragraph(col_m2, header_style),
+        Paragraph('Estado', header_style),
+        Paragraph('Unidades', header_style)
+    ]]
+    
+    items = []
+    if pl.entrega:
+         items = pl.entrega.packing_list_items.select_related('item_oc').all()
+         
+    for index, item in enumerate(items, start=1):
+        desc = item.item_oc.descripcion
+        # Prefer numeric medida_1/medida_2; fall back to legacy text fields
+        m1 = str(item.medida_1) if item.medida_1 is not None else (item.diametro or 'N/A')
+        m2 = str(item.medida_2) if item.medida_2 is not None else (item.alto_item or 'N/A')
+        table_data.append([
+            Paragraph(f"{index}. {desc}", body_style),
+            Paragraph(item.modelo_soporte or "N/A", body_style),
+            Paragraph(m1, body_style),
+            Paragraph(m2, body_style),
+            Paragraph(item.estado_item or "N/A", body_style),
+            Paragraph(item.unidades or str(int(item.cantidad)), body_style)
+        ])
+        
+    if not items:
+        table_data.append([Paragraph("No se encontraron ítems en esta entrega.", body_style), "", "", "", "", ""])
+        
+    items_table = Table(table_data, colWidths=[180, 110, 60, 60, 60, 60])
+    items_table.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#0d1220')),
+        ('ALIGN', (0,0), (-1,-1), 'LEFT'),
+        ('BOTTOMPADDING', (0,0), (-1,0), 5),
+        ('TOPPADDING', (0,0), (-1,0), 5),
+        ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#dddddd')),
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ('PADDING', (0,0), (-1,-1), 5),
+        ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, colors.HexColor('#f9f9f9')]),
+    ]))
+    story.append(items_table)
+    story.append(Spacer(1, 35))
+    
+    # 4. Firma
+    firma_data = [
+        ["", ""],
+        ["_________________________", ""],
+        ["JEFE DE OPERACIONES", ""],
+        ["MAESTRANZA BARK SPA", ""]
+    ]
+    firma_table = Table(firma_data, colWidths=[265, 265])
+    firma_table.setStyle(TableStyle([
+        ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+        ('FONTNAME', (0,2), (0,2), 'Helvetica-Bold'),
+        ('FONTSIZE', (0,2), (0,2), 8.5),
+    ]))
+    story.append(KeepTogether([firma_table]))
+    
+    doc.build(story)
+    return response
+
+
+@login_required
+def create_packing_list(request, numero_oc, entrega_id):
+    orden_compra = get_object_or_404(OrdenCompra, numero_oc=numero_oc)
+    entrega = get_object_or_404(Entrega, id=entrega_id, orden_compra=orden_compra)
+    
+    if request.method == 'POST':
+        fecha_orden = request.POST.get('fecha_orden') or timezone.now().date()
+        fecha_envio = request.POST.get('fecha_envio') or timezone.now().date()
+        nombre_cliente = request.POST.get('nombre_cliente') or orden_compra.cliente
+        
+        pl = PackingList(
+            orden_compra=orden_compra,
+            entrega=entrega,
+            fecha_orden=fecha_orden,
+            fecha_envio=fecha_envio,
+            nombre_cliente=nombre_cliente
+        )
+        pl.save()
+        
+        registrar_trazabilidad(
+            orden_compra,
+            "Packing List Creado",
+            f"Se generó Packing List N° {pl.numero_correlativo} para despacho guía {entrega.guia_despacho or 'S/N'}.",
+            request.user
+        )
+        messages.success(request, f"✅ Packing List N° {pl.numero_correlativo} creado exitosamente.")
+        
+    return redirect('entrega_detail', numero_oc=numero_oc, entrega_id=entrega_id)
+
+
+@login_required
+def entrega_detail(request, numero_oc, entrega_id):
+    orden_compra = get_object_or_404(OrdenCompra, numero_oc=numero_oc)
+    entrega = get_object_or_404(Entrega, id=entrega_id, orden_compra=orden_compra)
+    items = entrega.packing_list_items.select_related('item_oc').all()
+    packing_lists = entrega.packing_lists.all()
+    
+    if request.method == 'POST' and 'cambiar_facturacion' in request.POST:
+        nuevo_res = request.POST.get('estado_facturacion')
+        if nuevo_res in dict(Entrega.ESTADOS_FACTURACION):
+            entrega.estado_facturacion = nuevo_res
+            entrega.save()
+            registrar_trazabilidad(
+                orden_compra,
+                "Control Facturación Guía",
+                f"Guía {entrega.guia_despacho}: estado facturación ahora es '{entrega.get_estado_facturacion_display()}'.",
+                request.user
+            )
+            messages.success(request, f"✅ Estado de facturación de despacho cambiado a '{entrega.get_estado_facturacion_display()}'.")
+            return redirect('entrega_detail', numero_oc=numero_oc, entrega_id=entrega_id)
+
+    # Si se añade un packing_list_item directamente desde la vista de detalle
+    if request.method == 'POST' and 'agregar_item' in request.POST:
+        form = PackingListItemForm(request.POST, orden_compra=orden_compra)
+        if form.is_valid():
+            p_item = form.save(commit=False)
+            p_item.entrega = entrega
+            p_item.save()
+            registrar_trazabilidad(
+                orden_compra,
+                "Ítem Añadido a Despacho",
+                f"U: {p_item.cantidad} de '{p_item.item_oc.descripcion}' agregados a guía {entrega.guia_despacho}.",
+                request.user
+            )
+            messages.success(request, "✅ Ítem agregado al despacho.")
+            return redirect('entrega_detail', numero_oc=numero_oc, entrega_id=entrega_id)
+        else:
+            messages.error(request, f"Error al agregar ítem: {form.errors}")
+
+    form = PackingListItemForm(orden_compra=orden_compra)
+    context = {
+        'orden_compra': orden_compra,
+        'entrega': entrega,
+        'items': items,
+        'packing_lists': packing_lists,
+        'estados_facturacion': Entrega.ESTADOS_FACTURACION,
+        'form': form,
+    }
+    return render(request, 'core/entrega_detail.html', context)
+
+
+@login_required
+def despachos_list(request):
+    filtro = request.GET.get('filtro', 'por_facturar')
+    query = request.GET.get('q', '')
+
+    entregas = Entrega.objects.select_related('orden_compra').prefetch_related('packing_list_items__item_oc', 'facturas').all().order_by('-fecha_entrega')
+
+    if query:
+        entregas = entregas.filter(
+            Q(guia_despacho__icontains=query) |
+            Q(orden_compra__numero_oc__icontains=query) |
+            Q(orden_compra__cliente__icontains=query)
+        )
+
+    if filtro == 'por_facturar':
+        entregas = entregas.filter(estado_facturacion='por_facturar')
+    elif filtro == 'facturado':
+        entregas = entregas.filter(estado_facturacion='facturado')
+
+    if request.method == 'POST' and 'facturar_entrega' in request.POST:
+        entrega_id = request.POST.get('entrega_id')
+        num_factura = request.POST.get('numero_factura')
+        monto = request.POST.get('monto')
+        fecha_emision = request.POST.get('fecha_emision') or timezone.now().date()
+
+        entrega = get_object_or_404(Entrega, id=entrega_id)
+
+        if num_factura and monto:
+            # Crear Factura
+            Factura.objects.create(
+                orden_compra=entrega.orden_compra,
+                entrega=entrega,
+                numero_factura=num_factura,
+                monto=Decimal(monto),
+                fecha_emision=fecha_emision,
+                estado='pendiente'
+            )
+            entrega.estado_facturacion = 'facturado'
+            entrega.save()
+
+            # Registrar trazabilidad
+            registrar_trazabilidad(
+                entrega.orden_compra,
+                "Guía Facturada",
+                f"Se asoció la Factura N° {num_factura} por ${float(monto):,.0f} al despacho guía {entrega.guia_despacho} y se marcó como Facturado.",
+                request.user
+            )
+            messages.success(request, f"✅ Despacho GD-{entrega.guia_despacho or 'S/N'} facturado exitosamente con Fac N° {num_factura}.")
+        else:
+            entrega.estado_facturacion = 'facturado'
+            entrega.save()
+            messages.success(request, f"✅ Despacho GD-{entrega.guia_despacho or 'S/N'} marcado como Facturado.")
+
+        return redirect(f"{request.path}?filtro={filtro}&q={query}")
+
+    if request.method == 'POST' and 'desfacturar_entrega' in request.POST:
+        entrega_id = request.POST.get('entrega_id')
+        entrega = get_object_or_404(Entrega, id=entrega_id)
+        entrega.estado_facturacion = 'por_facturar'
+        entrega.save()
+
+        # Opcionalmente cancelar facturas asociadas a esta entrega para mantener costos consistentes
+        for f in entrega.facturas.all():
+            f.delete()
+
+        registrar_trazabilidad(
+            entrega.orden_compra,
+            "Despacho por Facturar",
+            f"Se cambió estado de de despacho guía {entrega.guia_despacho} a 'Por facturar' (se eliminaron facturas asociadas).",
+            request.user
+        )
+        messages.success(request, f"🔄 Despacho GD-{entrega.guia_despacho or 'S/N'} devuelto a 'Por Facturar'.")
+        return redirect(f"{request.path}?filtro={filtro}&q={query}")
+
+    context = {
+        'entregas': entregas,
+        'filtro': filtro,
+        'q': query,
+    }
+    return render(request, 'core/despachos_list.html', context)
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# EXPORTACIÓN EXCEL PACKING LIST (Formato imagen del cliente)
+# ──────────────────────────────────────────────────────────────────────────────
+
+@login_required
+def export_packing_list_excel(request, packing_list_id):
+    from openpyxl.styles import Border, Side
+    pl = get_object_or_404(PackingList, id=packing_list_id)
+    oc = pl.orden_compra
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = f"PL-{pl.numero_correlativo:05d}"
+
+    # ── Estilos base ──────────────────────────────────────────────────────────
+    thin = Side(style='thin', color='AAAAAA')
+    thick = Side(style='medium', color='1a3a5c')
+    border_thin = Border(left=thin, right=thin, top=thin, bottom=thin)
+    border_thick = Border(left=thick, right=thick, top=thick, bottom=thick)
+
+    def cell(ws, row, col, value='', bold=False, size=10, color='000000',
+             bg=None, align='left', border=None, wrap=False):
+        c = ws.cell(row=row, column=col, value=value)
+        c.font = Font(bold=bold, size=size, color=color, name='Calibri')
+        c.alignment = Alignment(horizontal=align, vertical='center', wrap_text=wrap)
+        if bg:
+            c.fill = PatternFill(start_color=bg, end_color=bg, fill_type='solid')
+        if border:
+            c.border = border
+        return c
+
+    # ── Anchos de columna (A-H) ───────────────────────────────────────────────
+    col_widths = {'A': 8, 'B': 22, 'C': 10, 'D': 14, 'E': 16, 'F': 14, 'G': 14, 'H': 12}
+    for col_letter, width in col_widths.items():
+        ws.column_dimensions[col_letter].width = width
+
+    # ── FILA 1: Header "CONTROL DE CALIDAD" ───────────────────────────────────
+    ws.merge_cells('D1:H1')
+    cell(ws, 1, 4, 'CONTROL DE CALIDAD', bold=True, size=11, color='1a3a5c', align='center', bg='D6E4F0')
+    ws.merge_cells('A1:C4')  # Logo area
+    logo_cell = ws.cell(row=1, column=1)
+    logo_cell.value = 'MAESTRANZA\nBARK SPA'
+    logo_cell.font = Font(bold=True, size=16, name='Calibri', color='1a3a5c')
+    logo_cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+    logo_cell.fill = PatternFill(start_color='EAF0FA', end_color='EAF0FA', fill_type='solid')
+
+    # ── FILA 2-4: "PACKING LIST" grande ──────────────────────────────────────
+    ws.merge_cells('D2:H4')
+    pl_cell = ws.cell(row=2, column=4)
+    pl_cell.value = 'PACKING LIST'
+    pl_cell.font = Font(bold=True, size=22, name='Calibri', color='1a3a5c')
+    pl_cell.alignment = Alignment(horizontal='center', vertical='center')
+    pl_cell.fill = PatternFill(start_color='EAF0FA', end_color='EAF0FA', fill_type='solid')
+
+    ws.row_dimensions[1].height = 22
+    ws.row_dimensions[2].height = 22
+    ws.row_dimensions[3].height = 22
+    ws.row_dimensions[4].height = 22
+
+    # ── FILA 5: Separador ─────────────────────────────────────────────────────
+    ws.row_dimensions[5].height = 8
+
+    # ── FILAS 6-10: Datos empresa y cliente ───────────────────────────────────
+    empresa_data = [
+        (f'Empresa: {pl.empresa}', f'Nombre de cliente: {pl.nombre_cliente}'),
+        (f'Dirección: {pl.direccion}',   f'Fecha de orden: {pl.fecha_orden.strftime("%d/%m/%Y") if pl.fecha_orden else "N/A"}'),
+        (f'Ciudad: Calama',               f'Fecha de envío: {pl.fecha_envio.strftime("%d/%m/%Y") if pl.fecha_envio else "N/A"}'),
+        (f'Correo: {pl.correo}',          ''),
+        (f'Teléfono: {pl.telefono}',      ''),
+    ]
+
+    for i, (izq, der) in enumerate(empresa_data, start=6):
+        ws.merge_cells(f'A{i}:C{i}')
+        c_izq = ws.cell(row=i, column=1, value=izq)
+        c_izq.font = Font(size=9, name='Calibri')
+        c_izq.alignment = Alignment(horizontal='left', vertical='center')
+        ws.merge_cells(f'D{i}:H{i}')
+        c_der = ws.cell(row=i, column=4, value=der)
+        c_der.font = Font(size=9, name='Calibri', bold=True if der.startswith('Nombre') or der.startswith('Fecha') else False)
+        c_der.alignment = Alignment(horizontal='left', vertical='center')
+        ws.row_dimensions[i].height = 15
+
+    # ── FILA 11: Separador ────────────────────────────────────────────────────
+    ws.row_dimensions[11].height = 8
+
+    # ── FILAS 12-14: Orden de Compra ─────────────────────────────────────────
+    ws.merge_cells('A12:C12')
+    c_oc_hdr = ws.cell(row=12, column=1, value='Orden de compra')
+    c_oc_hdr.font = Font(bold=True, size=9, name='Calibri')
+    c_oc_hdr.alignment = Alignment(horizontal='center', vertical='center')
+    c_oc_hdr.fill = PatternFill(start_color='D9D9D9', end_color='D9D9D9', fill_type='solid')
+    c_oc_hdr.border = Border(left=thin, right=thin, top=thin, bottom=thin)
+    ws.row_dimensions[12].height = 15
+
+    ws.merge_cells('A13:C14')
+    c_oc_val = ws.cell(row=13, column=1, value=oc.numero_oc)
+    c_oc_val.font = Font(size=9, name='Calibri')
+    c_oc_val.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+    c_oc_val.border = Border(left=thin, right=thin, top=thin, bottom=thin)
+    ws.row_dimensions[13].height = 22
+    ws.row_dimensions[14].height = 22
+
+    # ── FILA 15: Separador ────────────────────────────────────────────────────
+    ws.row_dimensions[15].height = 10
+
+    # ── FILA 16: Encabezados de tabla ─────────────────────────────────────────
+    headers = ['ITEM', 'MODELO SOPORTE', 'Ø', 'ALTO', 'ESTADO', 'UNIDADES']
+    col_map = [1, 2, 3, 4, 5, 6]
+    hdr_bg = '1a3a5c'
+    for i, h in enumerate(headers):
+        c = ws.cell(row=16, column=col_map[i], value=h)
+        c.font = Font(bold=True, size=9, color='FFFFFF', name='Calibri')
+        c.fill = PatternFill(start_color=hdr_bg, end_color=hdr_bg, fill_type='solid')
+        c.alignment = Alignment(horizontal='center', vertical='center')
+        c.border = border_thin
+    ws.row_dimensions[16].height = 18
+
+    # ── FILAS 17+: Ítems ──────────────────────────────────────────────────────
+    items = []
+    if pl.entrega:
+        items = list(pl.entrega.packing_list_items.select_related('item_oc').all())
+
+    row_num = 17
+    alt_colors = ['FFFFFF', 'F2F7FB']
+    if items:
+        for idx, item in enumerate(items, start=1):
+            bg = alt_colors[idx % 2]
+            row_vals = [
+                idx,
+                item.modelo_soporte or item.item_oc.descripcion,
+                item.diametro or '—',
+                item.alto_item or '—',
+                (item.estado_item or 'ENTREGADO').upper(),
+                item.unidades or str(int(float(item.cantidad or 1)))
+            ]
+            for ci, val in enumerate(row_vals):
+                c = ws.cell(row=row_num, column=col_map[ci], value=val)
+                c.font = Font(size=9, name='Calibri')
+                c.alignment = Alignment(horizontal='center', vertical='center')
+                c.fill = PatternFill(start_color=bg, end_color=bg, fill_type='solid')
+                c.border = border_thin
+            ws.row_dimensions[row_num].height = 16
+            row_num += 1
+    else:
+        ws.merge_cells(f'A{row_num}:F{row_num}')
+        c = ws.cell(row=row_num, column=1, value='Sin ítems registrados en este despacho')
+        c.font = Font(italic=True, size=9, color='888888', name='Calibri')
+        c.alignment = Alignment(horizontal='center', vertical='center')
+        row_num += 1
+
+    # ── Firma final ───────────────────────────────────────────────────────────
+    firma_row = row_num + 3
+    ws.merge_cells(f'D{firma_row}:F{firma_row}')
+    ws.cell(row=firma_row, column=4, value='_________________________________') \
+      .alignment = Alignment(horizontal='center')
+    ws.row_dimensions[firma_row].height = 15
+
+    ws.merge_cells(f'D{firma_row+1}:F{firma_row+1}')
+    c_empresa = ws.cell(row=firma_row+1, column=4, value='MAESTRANZA BARK SPA')
+    c_empresa.font = Font(bold=True, size=9, name='Calibri')
+    c_empresa.alignment = Alignment(horizontal='center')
+
+    ws.merge_cells(f'D{firma_row+2}:F{firma_row+2}')
+    c_cargo = ws.cell(row=firma_row+2, column=4, value='JEFE DE OPERACIONES.')
+    c_cargo.font = Font(size=9, name='Calibri')
+    c_cargo.alignment = Alignment(horizontal='center')
+
+    ws.merge_cells(f'D{firma_row+3}:F{firma_row+3}')
+    ws.cell(row=firma_row+3, column=4, value='- ' * 20) \
+      .alignment = Alignment(horizontal='center')
+
+    # ── Respuesta ──────────────────────────────────────────────────────────────
+    response = HttpResponse(
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    response['Content-Disposition'] = f'attachment; filename="PackingList_{pl.numero_correlativo:05d}.xlsx"'
+    with io.BytesIO() as b:
+        wb.save(b)
+        response.write(b.getvalue())
+    return response
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# EXPORTACIONES A EXCEL (CSV UTF-8)
+# ──────────────────────────────────────────────────────────────────────────────
+
+@login_required
+def export_bom_csv(request, numero_oc):
+    oc = get_object_or_404(OrdenCompra, numero_oc=numero_oc)
+    
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    # Excel no permite los caracteres \ / ? * [ ] en los nombres de hoja
+    safe_title = "".join(c if c not in r'\/?*[]' else '-' for c in f"BOM {oc.numero_oc}")
+    ws.title = safe_title[:31]  
+    
+    # Estilos Steel & Amber
+    header_font = Font(bold=True, color="FFFFFF")
+    header_fill = PatternFill(start_color="333333", end_color="333333", fill_type="solid")
+    center_aligned = Alignment(horizontal="center", vertical="center")
+    
+    headers = [
+        'Línea', 'Cód. Plano / Alt', 'Item Code', 'Size Code', 
+        'Marca / Descripción', 'UOM', 'Cant. Solicitada', 
+        'Cant. Entregada', 'Peso Unitario (kg)', 'Peso Total (kg)'
+    ]
+    
+    ws.append(headers)
+    for col_num, cell in enumerate(ws[1], 1):
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = center_aligned
+        col_letter = openpyxl.utils.get_column_letter(col_num)
+        ws.column_dimensions[col_letter].width = 18
+
+    # Ampliar la columna de descripción
+    ws.column_dimensions['E'].width = 45
+    
+    for item in oc.items.all():
+        ws.append([
+            item.linea or '', 
+            item.codigo or '', 
+            item.item_code or '', 
+            item.size_code or '', 
+            item.descripcion or '', 
+            item.uom or item.unidad or 'EA',
+            float(item.cantidad or 0), 
+            float(item.cantidad_entregada or 0),
+            float(item.peso_unitario_kg or 0), 
+            float(item.peso_total_kg or 0)
+        ])
+        
+    # Formatear números
+    for row in ws.iter_rows(min_row=2, max_row=ws.max_row):
+        for cell in row:
+            if isinstance(cell.value, float):
+                cell.number_format = '#,##0.00'
+    
+    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    response['Content-Disposition'] = f'attachment; filename="BOM_OC_{oc.numero_oc}.xlsx"'
+    
+    with io.BytesIO() as b:
+        wb.save(b)
+        response.write(b.getvalue())
+        
+    return response
+
+@login_required
+def export_rendicion_csv(request, numero_oc):
+    oc = get_object_or_404(OrdenCompra, numero_oc=numero_oc)
+    
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Rendición de Costos"
+    
+    header_font = Font(bold=True, color="FFFFFF")
+    header_fill = PatternFill(start_color="F59E0B", end_color="F59E0B", fill_type="solid") # Amber
+    dark_fill = PatternFill(start_color="333333", end_color="333333", fill_type="solid")
+    title_font = Font(bold=True, size=14)
+    normal_bold = Font(bold=True)
+    
+    ws['A1'] = 'REPORTE DE RENDICIÓN DE COSTOS'
+    ws['A1'].font = title_font
+    ws['A2'] = f'OC: {oc.numero_oc}'
+    ws['A3'] = f'CLIENTE: {oc.cliente}'
+    if oc.proyecto:
+        ws['A4'] = f'PROYECTO: {oc.proyecto}'
+        
+    current_row = 6
+    
+    def add_section_header(title, row):
+        ws.merge_cells(f'A{row}:D{row}')
+        cell = ws[f'A{row}']
+        cell.value = title
+        cell.font = header_font
+        cell.fill = dark_fill
+        cell.alignment = Alignment(horizontal="center")
+        return row + 1
+
+    current_row = add_section_header('RESUMEN FINANCIERO GLOBAL', current_row)
+    
+    fin_data = [
+        ('Valor Total Adjudicado (Sin IVA):', float(oc.valor_total or 0)),
+        ('Total Gastos en Materia Prima:', float(oc.costo_total_materiales or 0)),
+        ('Total Gastos en Mano de Obra:', float(oc.costo_total_mano_obra or 0)),
+        ('Costo Total del Trabajo:', float(oc.costo_total_trabajo or 0)),
+        ('UTILIDAD REAL:', float(oc.utilidad_real or 0)),
+        ('MARGEN DE UTILIDAD (%):', float(oc.porcentaje_utilidad or 0) / 100 if oc.porcentaje_utilidad else 0),
+        ('Costo por Kilo:', float(oc.costo_por_kilo or 0))
+    ]
+    
+    for label, val in fin_data:
+        ws.cell(row=current_row, column=1, value=label).font = normal_bold
+        val_cell = ws.cell(row=current_row, column=2, value=val)
+        if 'RENDIM' in label or 'UTILIDAD (%)' in label:
+            val_cell.number_format = '0.00%'
+        else:
+            val_cell.number_format = '#,##0'
+        current_row += 1
+        
+    current_row += 1
+    
+    # ── Materias Primas
+    current_row = add_section_header('DETALLE DE MATERIAS PRIMAS', current_row)
+    headers_mp = ['Producto / Material', 'Cantidad', 'Valor Unitario ($)', 'Valor Total ($)']
+    for col, h in enumerate(headers_mp, 1):
+        c = ws.cell(row=current_row, column=col, value=h)
+        c.font = header_font
+        c.fill = header_fill
+        c.alignment = Alignment(horizontal="center")
+    
+    current_row += 1
+    for mp in oc.materias_primas.all():
+        ws.cell(row=current_row, column=1, value=mp.producto)
+        ws.cell(row=current_row, column=2, value=float(mp.cantidad or 1))
+        ws.cell(row=current_row, column=3, value=float(mp.valor_unitario or 0)).number_format = '#,##0'
+        ws.cell(row=current_row, column=4, value=float(mp.total or 0)).number_format = '#,##0'
+        current_row += 1
+        
+    current_row += 2
+    
+    # ── Mano de Obra
+    ws.merge_cells(f'A{current_row}:G{current_row}')
+    cell = ws[f'A{current_row}']
+    cell.value = 'DETALLE DE MANO DE OBRA'
+    cell.font = header_font
+    cell.fill = dark_fill
+    cell.alignment = Alignment(horizontal="center")
+    current_row += 1
+    
+    headers_mo = ['Cargo / Especialidad', 'Días Trabajados', 'Hrs Normales', 'Hrs Extra', 'Cant. Trabajadores', 'Costo Horario ($)', 'Total ($)']
+    for col, h in enumerate(headers_mo, 1):
+        c = ws.cell(row=current_row, column=col, value=h)
+        c.font = header_font
+        c.fill = header_fill
+        c.alignment = Alignment(horizontal="center")
+        
+    current_row += 1
+    for mo in oc.manos_de_obra.all():
+        cargo_nombre = mo.cargo.nombre if mo.cargo else (mo.cargo_otro or 'N/A')
+        costo_hr = mo.precio_hora or (mo.cargo.precio_por_hora if mo.cargo else 0)
+        
+        ws.cell(row=current_row, column=1, value=cargo_nombre)
+        ws.cell(row=current_row, column=2, value=float(mo.dias or 0))
+        ws.cell(row=current_row, column=3, value=float(mo.horas or 0))
+        ws.cell(row=current_row, column=4, value=float(mo.horas_extra or 0))
+        ws.cell(row=current_row, column=5, value=float(mo.cantidad_trabajadores or 1))
+        ws.cell(row=current_row, column=6, value=float(costo_hr)).number_format = '#,##0'
+        ws.cell(row=current_row, column=7, value=float(mo.total or 0)).number_format = '#,##0'
+        current_row += 1
+        
+    ws.column_dimensions['A'].width = 40
+    ws.column_dimensions['B'].width = 18
+    ws.column_dimensions['C'].width = 18
+    ws.column_dimensions['D'].width = 18
+    ws.column_dimensions['G'].width = 18
+    
+    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    response['Content-Disposition'] = f'attachment; filename="Rendicion_Costos_{oc.numero_oc}.xlsx"'
+    
+    with io.BytesIO() as b:
+        wb.save(b)
+        response.write(b.getvalue())
+        
+    return response
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# LECTURA AUTOMÁTICA DE DOCUMENTOS (API)
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+
+
+
+
+
+
+
+@csrf_exempt
+def api_analizar_documento(request):
+    if request.method == 'POST' and request.FILES.get('documento'):
+        archivo = request.FILES['documento']
+        nombre = archivo.name.lower()
+        
+        datos = {
+            'numero_oc': '',
+            'cliente': '',
+            'proyecto': '',
+            'fecha_oc': '',
+            'valor_total': '',
+        }
+        
+        try:
+            texto = ""
+            texto_items = ""
+            if nombre.endswith('.pdf'):
+                with pdfplumber.open(archivo) as pdf:
+                    for i, pagina in enumerate(pdf.pages):
+                        extracted = pagina.extract_text()
+                        if extracted:
+                            texto += extracted + "\n"
+                            # Guardar específicamente las últimas 4 páginas para los ítems
+                            if len(pdf.pages) - i <= 4:
+                                texto_items += extracted + "\n"
+            elif nombre.endswith('.xlsx'):
+                wb = openpyxl.load_workbook(archivo, data_only=True)
+                ws = wb.active
+                for row in ws.iter_rows(values_only=True):
+                    linea = " ".join([str(v) for v in row if v is not None])
+                    texto += linea + "\n"
+                texto_items = texto
+                    
+            # Basic RegEx Extraction for OC Fields
+            # Número OC (ej: D3MC104397, o PO-12345)
+            # Many times it's near "Purchase Order", "OC", "Orden de Compra"
+            re_oc = re.search(r'(?:OC|Orden de Compra|PO|Purchase Order)[\s:N°#]+([A-Z0-9\-\/]+)', texto, re.IGNORECASE)
+            if re_oc:
+                datos['numero_oc'] = re_oc.group(1).strip()
+            
+            # Cliente
+            re_cliente = re.search(r'(?:Cliente|Customer|To)[\s:]+([A-Za-z0-9\.\s&]+)', texto, re.IGNORECASE)
+            # We take just the first line
+            if re_cliente:
+                cliente_candidate = re_cliente.group(1).split('\n')[0].strip()
+                if len(cliente_candidate) > 2:
+                    datos['cliente'] = cliente_candidate[:100]
+            
+            # Proyecto
+            re_proyecto = re.search(r'(?:Proyecto|Project)[\s:]+([^\n]+)', texto, re.IGNORECASE)
+            if re_proyecto:
+                datos['proyecto'] = re_proyecto.group(1).strip()[:100]
+                
+            # Fecha OC
+            # Buscando formatos comunes de fecha dd/mm/yyyy o yyyy-mm-dd
+            re_fecha = re.search(r'(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})', texto)
+            if re_fecha:
+                raw_date = re_fecha.group(1)
+                datos['fecha_oc'] = raw_date
+                
+            # Monto total aproximado
+            re_monto = re.search(r'(?:Total|Neto)[\s:\$]*([\d\.,]+)', texto, re.IGNORECASE)
+            if re_monto:
+                # remove non digits except dot or comma
+                monto_val = re.sub(r'[^\d]', '', re_monto.group(1))
+                if monto_val:
+                    datos['valor_total'] = monto_val
+
+            # Extraer ítems de material (BOM)
+            items_extraidos = []
+            lineas = texto.split('\n')
+            for i, linea in enumerate(lineas):
+                if 'Item code:' in linea:
+                    match = re.search(r'Item code:\s+(\S+)\s+(\d{1,4})\s+(.+?)\s+([\d\.,]+)\s+([\d\.,]+)\s+([\d\.,]+)\s+([A-Za-z0-9\-]+)', linea)
+                    if match:
+                        item_code = match.group(1)
+                        linea_num = match.group(2).lstrip('0') or '1'
+                        size = match.group(3).strip()
+                        cant = match.group(4).replace(',', '')
+                        precio_u = match.group(5).replace(',', '')
+                        precio_t = match.group(6).replace(',', '')
+                        fecha_e_raw = match.group(7).strip()
+                        
+                        desc = ""
+                        uom = "EA"
+                        
+                        if i + 1 < len(lineas):
+                            next_line = lineas[i+1].strip()
+                            # Match something like "SOPORTE    EA - each    CLP"
+                            match_next = re.search(r'^(.*?)\s+([A-Z]{2,4}(?:\s*-\s*[a-zA-Z]+)?)\s+([A-Z]{3,4})$', next_line)
+                            if match_next:
+                                desc = match_next.group(1).strip()
+                                uom = match_next.group(2).strip()
+                            elif next_line and not "Item code:" in next_line:
+                                desc = next_line[:80] # Fallback a usar toda la línea como desc
+                                
+                        items_extraidos.append({
+                            'linea': linea_num,
+                            'item_code': item_code,
+                            'size_code': size if '<No Size>' not in size else '',
+                            'descripcion': desc[:255] if desc else f"Item {item_code}",
+                            'cantidad': cant,
+                            'uom': uom,
+                            'precio_unitario': precio_u,
+                            'precio_total': precio_t,
+                            'fecha_entrega': fecha_e_raw
+                        })
+            
+            datos['items'] = items_extraidos
+                    
+            return JsonResponse({'success': True, 'datos': datos})
+        except Exception as e:
+            return JsonResponse({'success': False, 'error': str(e)})
+
+    return JsonResponse({'success': False, 'error': 'No file sent'})
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# COTIZACIÓN — CRUD y PDF
+# ──────────────────────────────────────────────────────────────────────────────
+
+@login_required
+def cotizacion_list(request):
+    cotizaciones = Cotizacion.objects.select_related('orden_compra').all()
+    return render(request, 'core/cotizacion_list.html', {'cotizaciones': cotizaciones})
+
+
+@login_required
+def cotizacion_create(request):
+    if request.method == 'POST':
+        form = CotizacionForm(request.POST)
+        if form.is_valid():
+            cot = form.save()
+            messages.success(request, f'Cotización N° {cot.numero_cotizacion} creada.')
+            return redirect('cotizacion_detail', cotizacion_id=cot.id)
+        else:
+            messages.error(request, f'Error: {form.errors}')
+    else:
+        form = CotizacionForm()
+    return render(request, 'core/cotizacion_form.html', {'form': form, 'titulo': 'Nueva Cotización'})
+
+
+@login_required
+def cotizacion_detail(request, cotizacion_id):
+    cotizacion = get_object_or_404(Cotizacion, id=cotizacion_id)
+    items = cotizacion.items.all()
+    item_form = ItemCotizacionForm()
+
+    if request.method == 'POST' and 'agregar_item' in request.POST:
+        item_form = ItemCotizacionForm(request.POST)
+        if item_form.is_valid():
+            item = item_form.save(commit=False)
+            item.cotizacion = cotizacion
+            item.save()
+            messages.success(request, 'Ítem agregado.')
+            return redirect('cotizacion_detail', cotizacion_id=cotizacion_id)
+        else:
+            messages.error(request, f'Error: {item_form.errors}')
+
+    return render(request, 'core/cotizacion_detail.html', {
+        'cotizacion': cotizacion,
+        'items': items,
+        'item_form': item_form,
+    })
+
+
+@login_required
+def cotizacion_item_delete(request, cotizacion_id, item_id):
+    item = get_object_or_404(ItemCotizacion, id=item_id, cotizacion_id=cotizacion_id)
+    item.delete()
+    messages.success(request, 'Ítem eliminado.')
+    return redirect('cotizacion_detail', cotizacion_id=cotizacion_id)
+
+
+@login_required
+def cotizacion_pdf(request, cotizacion_id):
+    """Genera el PDF de Cotización replicando el formato Bark."""
+    cot = get_object_or_404(Cotizacion, id=cotizacion_id)
+    items = cot.items.all()
+
+    response = HttpResponse(content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="Cotizacion_{cot.numero_cotizacion:05d}.pdf"'
+
+    doc = SimpleDocTemplate(response, pagesize=letter,
+                            rightMargin=40, leftMargin=40, topMargin=40, bottomMargin=40)
+    story = []
+    styles = getSampleStyleSheet()
+
+    dark_blue = colors.HexColor('#0d1220')
+    light_bg  = colors.HexColor('#f5f7fa')
+
+    title_style = ParagraphStyle('TS', parent=styles['Normal'], fontName='Helvetica-Bold',
+                                  fontSize=18, textColor=dark_blue, leading=22)
+    sub_style   = ParagraphStyle('SS', parent=styles['Normal'], fontName='Helvetica-Bold',
+                                  fontSize=9, textColor=colors.white)
+    body_style  = ParagraphStyle('BS', parent=styles['Normal'], fontName='Helvetica',
+                                  fontSize=8.5, leading=11, textColor=colors.HexColor('#333333'))
+    bold_body   = ParagraphStyle('BB', parent=styles['Normal'], fontName='Helvetica-Bold',
+                                  fontSize=8.5, leading=11)
+
+    # ── Membrete ──────────────────────────────────────────────────────────────
+    empresa_txt = (
+        "<b>MAESTRANZA BARK SPA</b><br/>"
+        "Giro: Maestranza y Fabricaciones Metálicas<br/>"
+        "RUT: 77.XXX.XXX-X<br/>"
+        "Dirección: Camino F-30-E N° 1200, Quintero, Valparaíso<br/>"
+        "Fono: +56 9 1234 5678 | contacto@maestranzabark.cl"
+    )
+    cot_txt = (
+        f"<font color='#0d1220'><b>COTIZACIÓN</b></font><br/>"
+        f"<b>N° {cot.numero_cotizacion:05d}</b>"
+    )
+    header_tbl = Table([[Paragraph(empresa_txt, body_style), Paragraph(cot_txt, title_style)]],
+                        colWidths=[310, 220])
+    header_tbl.setStyle(TableStyle([
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 10),
+    ]))
+    story.append(header_tbl)
+    story.append(Spacer(1, 6))
+
+    # ── Recuadro Fecha/Válido/Cliente ─────────────────────────────────────────
+    fecha_str  = cot.fecha.strftime('%d/%m/%Y') if cot.fecha else 'N/A'
+    valido_str = cot.valido_hasta.strftime('%d/%m/%Y') if cot.valido_hasta else 'N/A'
+    box_data = [
+        [Paragraph('<b>Fecha</b>', bold_body), Paragraph(fecha_str, body_style),
+         Paragraph('<b>Cotización N°</b>', bold_body), Paragraph(f'{cot.numero_cotizacion:05d}', body_style)],
+        [Paragraph('<b>Válido hasta</b>', bold_body), Paragraph(valido_str, body_style),
+         Paragraph('<b>Cliente ID</b>', bold_body), Paragraph(cot.cliente_id or '—', body_style)],
+    ]
+    box_tbl = Table(box_data, colWidths=[100, 120, 100, 210])
+    box_tbl.setStyle(TableStyle([
+        ('BOX', (0,0), (-1,-1), 1, colors.HexColor('#cccccc')),
+        ('INNERGRID', (0,0), (-1,-1), 0.5, colors.HexColor('#dddddd')),
+        ('BACKGROUND', (0,0), (-1,-1), light_bg),
+        ('PADDING', (0,0), (-1,-1), 5),
+    ]))
+    story.append(box_tbl)
+    story.append(Spacer(1, 8))
+
+    # ── Tabla Contacto ────────────────────────────────────────────────────────
+    contact_hdr = Table([[Paragraph('CONTACTO', sub_style)]], colWidths=[530])
+    contact_hdr.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,-1), dark_blue), ('PADDING', (0,0), (-1,-1), 4)]))
+    story.append(contact_hdr)
+    contact_data = [
+        [Paragraph('<b>Atte. a:</b>', bold_body), Paragraph(cot.contacto_nombre or '—', body_style),
+         Paragraph('<b>Cargo:</b>', bold_body), Paragraph(cot.contacto_cargo or '—', body_style)],
+    ]
+    contact_tbl = Table(contact_data, colWidths=[70, 200, 60, 200])
+    contact_tbl.setStyle(TableStyle([
+        ('BOX', (0,0), (-1,-1), 1, colors.HexColor('#cccccc')),
+        ('PADDING', (0,0), (-1,-1), 5),
+    ]))
+    story.append(contact_tbl)
+    story.append(Spacer(1, 6))
+
+    # ── Datos del Cliente ─────────────────────────────────────────────────────
+    client_hdr = Table([[Paragraph('DATOS DEL CLIENTE', sub_style)]], colWidths=[530])
+    client_hdr.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,-1), dark_blue), ('PADDING', (0,0), (-1,-1), 4)]))
+    story.append(client_hdr)
+    client_data = [
+        [Paragraph('<b>Razón Social:</b>', bold_body), Paragraph(cot.razon_social or '—', body_style),
+         Paragraph('<b>Giro:</b>', bold_body), Paragraph(cot.giro or '—', body_style)],
+        [Paragraph('<b>RUT:</b>', bold_body), Paragraph(cot.rut_receptor or '—', body_style),
+         Paragraph('<b>Ciudad:</b>', bold_body), Paragraph(cot.ciudad_receptor or '—', body_style)],
+        [Paragraph('<b>Dirección:</b>', bold_body), Paragraph(cot.direccion_receptor or '—', body_style), '', ''],
+    ]
+    client_tbl = Table(client_data, colWidths=[80, 195, 60, 195])
+    client_tbl.setStyle(TableStyle([
+        ('BOX', (0,0), (-1,-1), 1, colors.HexColor('#cccccc')),
+        ('INNERGRID', (0,0), (-1,-1), 0.5, colors.HexColor('#eeeeee')),
+        ('PADDING', (0,0), (-1,-1), 5),
+        ('SPAN', (1,2), (3,2)),
+    ]))
+    story.append(client_tbl)
+    story.append(Spacer(1, 10))
+
+    # ── Tabla de Ítems ────────────────────────────────────────────────────────
+    items_hdr_style = ParagraphStyle('IH', parent=styles['Normal'], fontName='Helvetica-Bold',
+                                      fontSize=8, textColor=colors.white)
+    item_tbl_data = [[
+        Paragraph('N°', items_hdr_style),
+        Paragraph('Descripción', items_hdr_style),
+        Paragraph('Valor kg', items_hdr_style),
+        Paragraph('C/U', items_hdr_style),
+        Paragraph('KG c/u', items_hdr_style),
+        Paragraph('KG total', items_hdr_style),
+        Paragraph('Valor', items_hdr_style),
+    ]]
+    for i, it in enumerate(items, 1):
+        bg = colors.white if i % 2 == 1 else light_bg
+        item_tbl_data.append([
+            Paragraph(str(i), body_style),
+            Paragraph(it.descripcion, body_style),
+            Paragraph(f"${it.valor_kg:,.0f}", body_style),
+            Paragraph(str(it.cantidad), body_style),
+            Paragraph(f"{it.kg_por_unidad:,.3f}", body_style),
+            Paragraph(f"{it.kg_total:,.3f}", body_style),
+            Paragraph(f"${it.valor:,.0f}", body_style),
+        ])
+    if not items:
+        item_tbl_data.append([Paragraph('Sin ítems.', body_style), '', '', '', '', '', ''])
+
+    item_tbl = Table(item_tbl_data, colWidths=[25, 195, 65, 40, 60, 65, 80])
+    item_tbl.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), dark_blue),
+        ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#dddddd')),
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ('PADDING', (0,0), (-1,-1), 4),
+        ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, light_bg]),
+    ]))
+    story.append(item_tbl)
+    story.append(Spacer(1, 10))
+
+    # ── Totales ────────────────────────────────────────────────────────────────
+    totales_data = [
+        [Paragraph('Sub Total', bold_body), Paragraph(f"${cot.subtotal:,.0f}", body_style)],
+        [Paragraph('Impuesto 19%', bold_body), Paragraph(f"${cot.iva:,.0f}", body_style)],
+        [Paragraph('<b>Total</b>', bold_body), Paragraph(f"<b>${cot.total:,.0f}</b>", bold_body)],
+    ]
+    totales_tbl = Table(totales_data, colWidths=[370, 160])
+    totales_tbl.setStyle(TableStyle([
+        ('ALIGN', (1,0), (1,-1), 'RIGHT'),
+        ('LINEABOVE', (0,2), (-1,2), 1, dark_blue),
+        ('PADDING', (0,0), (-1,-1), 4),
+    ]))
+    story.append(totales_tbl)
+
+    if cot.observaciones:
+        story.append(Spacer(1, 8))
+        story.append(Paragraph(f'<b>Notas:</b> {cot.observaciones}', body_style))
+
+    doc.build(story)
+    return response
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# GUÍA DE DESPACHO — CRUD y PDF
+# ──────────────────────────────────────────────────────────────────────────────
+
+@login_required
+def guia_create(request, numero_oc, entrega_id):
+    orden_compra = get_object_or_404(OrdenCompra, numero_oc=numero_oc)
+    entrega = get_object_or_404(Entrega, id=entrega_id, orden_compra=orden_compra)
+
+    if hasattr(entrega, 'guia_despacho_obj'):
+        messages.info(request, 'Esta entrega ya tiene una Guía de Despacho.')
+        return redirect('guia_detail', numero_oc=numero_oc, entrega_id=entrega_id)
+
+    if request.method == 'POST':
+        form = GuiaDespachoForm(request.POST)
+        if form.is_valid():
+            guia = form.save(commit=False)
+            guia.entrega = entrega
+            guia.save()
+            registrar_trazabilidad(orden_compra, 'Guía de Despacho Creada',
+                                   f'Se creó la Guía N° {guia.numero_guia}.', request.user)
+            messages.success(request, f'Guía N° {guia.numero_guia} creada.')
+            return redirect('guia_detail', numero_oc=numero_oc, entrega_id=entrega_id)
+        else:
+            messages.error(request, f'Error: {form.errors}')
+    else:
+        initial = {
+            'numero_guia': entrega.guia_despacho or '',
+            'fecha_emision': entrega.fecha_entrega,
+            'receptor_nombre': orden_compra.cliente,
+        }
+        form = GuiaDespachoForm(initial=initial)
+
+    return render(request, 'core/guia_form.html', {
+        'form': form, 'orden_compra': orden_compra, 'entrega': entrega,
+        'titulo': 'Crear Guía de Despacho',
+    })
+
+
+@login_required
+def guia_detail(request, numero_oc, entrega_id):
+    orden_compra = get_object_or_404(OrdenCompra, numero_oc=numero_oc)
+    entrega = get_object_or_404(Entrega, id=entrega_id, orden_compra=orden_compra)
+    guia = getattr(entrega, 'guia_despacho_obj', None)
+    item_form = ItemGuiaForm()
+    items = guia.items_guia.all() if guia else []
+
+    if request.method == 'POST' and guia and 'agregar_item_guia' in request.POST:
+        item_form = ItemGuiaForm(request.POST)
+        if item_form.is_valid():
+            ig = item_form.save(commit=False)
+            ig.guia = guia
+            ig.save()
+            messages.success(request, 'Ítem agregado a la guía.')
+            return redirect('guia_detail', numero_oc=numero_oc, entrega_id=entrega_id)
+
+    return render(request, 'core/guia_detail.html', {
+        'orden_compra': orden_compra, 'entrega': entrega,
+        'guia': guia, 'items': items, 'item_form': item_form,
+    })
+
+
+@login_required
+def guia_item_delete(request, numero_oc, entrega_id, item_id):
+    item = get_object_or_404(ItemGuia, id=item_id)
+    item.delete()
+    messages.success(request, 'Ítem eliminado.')
+    return redirect('guia_detail', numero_oc=numero_oc, entrega_id=entrega_id)
+
+
+def _build_guia_story(guia, styles, body_style, bold_body, sub_style, items_hdr_style):
+    """Construye la historia ReportLab de la Guía de Despacho (una o más páginas)."""
+    dark_blue = colors.HexColor('#0d1220')
+    light_bg  = colors.HexColor('#f5f7fa')
+    story = []
+
+    # Membrete
+    empresa_txt = (
+        "<b>MAESTRANZA BARK SPA</b><br/>"
+        "Giro: Maestranza y Fabricaciones Metálicas<br/>"
+        "RUT: 77.XXX.XXX-X<br/>"
+        "Dirección: Camino F-30-E N° 1200, Quintero, Valparaíso"
+    )
+    guia_txt = f"<b>GUÍA DE DESPACHO<br/>N° {guia.numero_guia}</b>"
+    title_style = ParagraphStyle('GT', parent=styles['Normal'], fontName='Helvetica-Bold',
+                                  fontSize=14, textColor=dark_blue, leading=18)
+    hdr = Table([[Paragraph(empresa_txt, body_style), Paragraph(guia_txt, title_style)]],
+                 colWidths=[310, 220])
+    hdr.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'MIDDLE'), ('BOTTOMPADDING', (0,0), (-1,-1), 10)]))
+    story.append(hdr)
+    story.append(Spacer(1, 8))
+
+    # Datos receptor
+    oc_num = guia.entrega.orden_compra.numero_oc if guia.entrega else '—'
+    receptor_data = [
+        [Paragraph('<b>Fecha Emisión</b>', bold_body),
+         Paragraph(guia.fecha_emision.strftime('%d/%m/%Y') if guia.fecha_emision else '—', body_style),
+         Paragraph('<b>OC Referencia</b>', bold_body), Paragraph(oc_num, body_style)],
+        [Paragraph('<b>Razón Social</b>', bold_body), Paragraph(guia.receptor_nombre or '—', body_style),
+         Paragraph('<b>RUT</b>', bold_body), Paragraph(guia.receptor_rut or '—', body_style)],
+        [Paragraph('<b>Giro</b>', bold_body), Paragraph(guia.receptor_giro or '—', body_style),
+         Paragraph('<b>Comuna</b>', bold_body), Paragraph(guia.receptor_comuna or '—', body_style)],
+        [Paragraph('<b>Dirección</b>', bold_body), Paragraph(guia.receptor_direccion or '—', body_style),
+         Paragraph('<b>Contacto</b>', bold_body), Paragraph(guia.contacto or '—', body_style)],
+    ]
+    rec_tbl = Table(receptor_data, colWidths=[90, 190, 80, 170])
+    rec_tbl.setStyle(TableStyle([
+        ('BOX', (0,0), (-1,-1), 1, colors.HexColor('#cccccc')),
+        ('INNERGRID', (0,0), (-1,-1), 0.5, colors.HexColor('#eeeeee')),
+        ('BACKGROUND', (0,0), (-1,-1), light_bg),
+        ('PADDING', (0,0), (-1,-1), 5),
+    ]))
+    story.append(rec_tbl)
+    story.append(Spacer(1, 6))
+
+    # Datos transporte
+    trans_data = [
+        [Paragraph('<b>Tipo Despacho</b>', bold_body), Paragraph(guia.tipo_despacho or '—', body_style),
+         Paragraph('<b>Tipo Traslado</b>', bold_body), Paragraph(guia.tipo_traslado or '—', body_style)],
+        [Paragraph('<b>Chofer</b>', bold_body), Paragraph(guia.chofer_nombre or '—', body_style),
+         Paragraph('<b>RUT Chofer</b>', bold_body), Paragraph(guia.chofer_rut or '—', body_style)],
+        [Paragraph('<b>Patente</b>', bold_body), Paragraph(guia.patente or '—', body_style),
+         Paragraph('<b>RUT Transportista</b>', bold_body), Paragraph(guia.transportista_rut or '—', body_style)],
+        [Paragraph('<b>Dirección Destino</b>', bold_body), Paragraph(guia.direccion_destino or '—', body_style), '', ''],
+    ]
+    trans_tbl = Table(trans_data, colWidths=[100, 165, 100, 165])
+    trans_tbl.setStyle(TableStyle([
+        ('BOX', (0,0), (-1,-1), 1, colors.HexColor('#cccccc')),
+        ('INNERGRID', (0,0), (-1,-1), 0.5, colors.HexColor('#eeeeee')),
+        ('PADDING', (0,0), (-1,-1), 5),
+        ('SPAN', (1,3), (3,3)),
+    ]))
+    story.append(trans_tbl)
+    story.append(Spacer(1, 10))
+
+    # Tabla detalle ítems
+    items_tbl_data = [[
+        Paragraph('N°', items_hdr_style),
+        Paragraph('Descripción', items_hdr_style),
+        Paragraph('Cantidad / Unidad', items_hdr_style),
+        Paragraph('Precio Unit.', items_hdr_style),
+        Paragraph('Total', items_hdr_style),
+    ]]
+    guia_items = list(guia.items_guia.all())
+    for i, it in enumerate(guia_items, 1):
+        items_tbl_data.append([
+            Paragraph(str(i), body_style),
+            Paragraph(it.descripcion, body_style),
+            Paragraph(it.cantidad_unidad or '—', body_style),
+            Paragraph(f"${it.precio_unitario:,.0f}", body_style),
+            Paragraph(f"${it.total:,.0f}", body_style),
+        ])
+    if not guia_items:
+        items_tbl_data.append([Paragraph('Sin ítems.', body_style), '', '', '', ''])
+
+    it_tbl = Table(items_tbl_data, colWidths=[30, 260, 100, 80, 80])
+    it_tbl.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), dark_blue),
+        ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#dddddd')),
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ('PADDING', (0,0), (-1,-1), 4),
+        ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, light_bg]),
+    ]))
+    story.append(it_tbl)
+    story.append(Spacer(1, 8))
+
+    # Totales
+    tot_data = [
+        [Paragraph('Monto Neto', bold_body), Paragraph(f"${guia.monto_neto:,.0f}", body_style)],
+        [Paragraph('IVA (19%)', bold_body), Paragraph(f"${guia.iva:,.0f}", body_style)],
+        [Paragraph('<b>Monto Total</b>', bold_body), Paragraph(f"<b>${guia.monto_total:,.0f}</b>", bold_body)],
+    ]
+    tot_tbl = Table(tot_data, colWidths=[420, 110])
+    tot_tbl.setStyle(TableStyle([
+        ('ALIGN', (1,0), (1,-1), 'RIGHT'),
+        ('LINEABOVE', (0,2), (-1,2), 1, dark_blue),
+        ('PADDING', (0,0), (-1,-1), 4),
+    ]))
+    story.append(tot_tbl)
+    return story
+
+
+@login_required
+def guia_pdf(request, numero_oc, entrega_id):
+    orden_compra = get_object_or_404(OrdenCompra, numero_oc=numero_oc)
+    entrega = get_object_or_404(Entrega, id=entrega_id, orden_compra=orden_compra)
+    guia = get_object_or_404(GuiaDespacho, entrega=entrega)
+
+    response = HttpResponse(content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="Guia_{guia.numero_guia}.pdf"'
+
+    doc = SimpleDocTemplate(response, pagesize=letter,
+                            rightMargin=40, leftMargin=40, topMargin=40, bottomMargin=40)
+    styles = getSampleStyleSheet()
+    body_style = ParagraphStyle('BS', parent=styles['Normal'], fontName='Helvetica',
+                                 fontSize=8.5, leading=11, textColor=colors.HexColor('#333333'))
+    bold_body  = ParagraphStyle('BB', parent=styles['Normal'], fontName='Helvetica-Bold', fontSize=8.5, leading=11)
+    sub_style  = ParagraphStyle('SbS', parent=styles['Normal'], fontName='Helvetica-Bold', fontSize=9, textColor=colors.white)
+    items_hdr_style = ParagraphStyle('IH', parent=styles['Normal'], fontName='Helvetica-Bold',
+                                      fontSize=8, textColor=colors.white)
+
+    story = _build_guia_story(guia, styles, body_style, bold_body, sub_style, items_hdr_style)
+    doc.build(story)
+    return response
+
+
+@login_required
+def guia_packing_combinado_pdf(request, numero_oc, entrega_id):
+    """PDF combinado: Guía de Despacho (pág 1) + Packing List (págs siguientes)."""
+    from reportlab.platypus import PageBreak
+    orden_compra = get_object_or_404(OrdenCompra, numero_oc=numero_oc)
+    entrega = get_object_or_404(Entrega, id=entrega_id, orden_compra=orden_compra)
+    guia = get_object_or_404(GuiaDespacho, entrega=entrega)
+
+    # Obtener el primer packing list de esta entrega
+    pl = entrega.packing_lists.first()
+
+    response = HttpResponse(content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="Guia_PL_{guia.numero_guia}.pdf"'
+
+    doc = SimpleDocTemplate(response, pagesize=letter,
+                            rightMargin=40, leftMargin=40, topMargin=40, bottomMargin=40)
+    styles = getSampleStyleSheet()
+    dark_blue = colors.HexColor('#0d1220')
+    light_bg  = colors.HexColor('#f5f7fa')
+
+    body_style = ParagraphStyle('BS', parent=styles['Normal'], fontName='Helvetica',
+                                 fontSize=8.5, leading=11, textColor=colors.HexColor('#333333'))
+    bold_body  = ParagraphStyle('BB', parent=styles['Normal'], fontName='Helvetica-Bold', fontSize=8.5, leading=11)
+    sub_style  = ParagraphStyle('SbS', parent=styles['Normal'], fontName='Helvetica-Bold',
+                                  fontSize=9, textColor=colors.white)
+    items_hdr_style = ParagraphStyle('IH', parent=styles['Normal'], fontName='Helvetica-Bold',
+                                      fontSize=8, textColor=colors.white)
+    title_style = ParagraphStyle('TS', parent=styles['Normal'], fontName='Helvetica-Bold',
+                                  fontSize=15, textColor=dark_blue, alignment=1)
+    header_style = ParagraphStyle('HS', parent=styles['Normal'], fontName='Helvetica-Bold',
+                                   fontSize=9, leading=11, textColor=colors.white)
+
+    story = _build_guia_story(guia, styles, body_style, bold_body, sub_style, items_hdr_style)
+    story.append(PageBreak())
+
+    # ── Packing List story ───────────────────────────────────────────────────
+    if pl:
+        empresa_info = (f"<b>{pl.empresa}</b><br/>Giro: Maestranza y Fabricaciones Metálicas<br/>"
+                        f"Dir: {pl.direccion}<br/>Correo: {pl.correo}<br/>Fono: {pl.telefono}")
+        documento_info = (f"<font color='#0D1220'>Packing List N° {pl.numero_correlativo:05d}</font><br/><br/>"
+                          f"<b>CONTROL DE CALIDAD<br/>PACKING LIST</b>")
+        pl_hdr = Table([[Paragraph(empresa_info, body_style), Paragraph(documento_info, title_style)]],
+                        colWidths=[250, 280])
+        pl_hdr.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'MIDDLE'), ('BOTTOMPADDING', (0,0), (-1,-1), 10)]))
+        story.append(pl_hdr)
+        story.append(Spacer(1, 10))
+
+        cliente_data = [
+            [Paragraph(f"<b>Cliente:</b> {pl.nombre_cliente}", body_style),
+             Paragraph(f"<b>Fecha Orden:</b> {pl.fecha_orden.strftime('%d-%m-%Y') if pl.fecha_orden else 'N/A'}", body_style)],
+            [Paragraph(f"<b>N° OC Asociada:</b> {pl.orden_compra.numero_oc}", body_style),
+             Paragraph(f"<b>Fecha Envío:</b> {pl.fecha_envio.strftime('%d-%m-%Y') if pl.fecha_envio else 'N/A'}", body_style)],
+            [Paragraph(f"<b>Guía Despacho:</b> {guia.numero_guia}", body_style),
+             Paragraph("", body_style)],
+        ]
+        cl_tbl = Table(cliente_data, colWidths=[265, 265])
+        cl_tbl.setStyle(TableStyle([
+            ('BOX', (0,0), (-1,-1), 1, colors.HexColor('#dddddd')),
+            ('BACKGROUND', (0,0), (-1,-1), light_bg),
+            ('PADDING', (0,0), (-1,-1), 6),
+        ]))
+        story.append(cl_tbl)
+        story.append(Spacer(1, 15))
+
+        col_m1 = pl.col_medida_1
+        col_m2 = pl.col_medida_2
+        pl_items_data = [[
+            Paragraph('Ítem / Descripción', header_style),
+            Paragraph('Modelo Soporte', header_style),
+            Paragraph(col_m1, header_style),
+            Paragraph(col_m2, header_style),
+            Paragraph('Estado', header_style),
+            Paragraph('Unidades', header_style),
+        ]]
+        pl_items = list(entrega.packing_list_items.select_related('item_oc').all())
+        for idx, pli in enumerate(pl_items, 1):
+            m1 = str(pli.medida_1) if pli.medida_1 is not None else (pli.diametro or 'N/A')
+            m2 = str(pli.medida_2) if pli.medida_2 is not None else (pli.alto_item or 'N/A')
+            pl_items_data.append([
+                Paragraph(f"{idx}. {pli.item_oc.descripcion}", body_style),
+                Paragraph(pli.modelo_soporte or 'N/A', body_style),
+                Paragraph(m1, body_style), Paragraph(m2, body_style),
+                Paragraph(pli.estado_item or 'N/A', body_style),
+                Paragraph(pli.unidades or str(int(pli.cantidad)), body_style),
+            ])
+        if not pl_items:
+            pl_items_data.append([Paragraph('Sin ítems.', body_style), '', '', '', '', ''])
+
+        pl_it_tbl = Table(pl_items_data, colWidths=[180, 110, 60, 60, 60, 60])
+        pl_it_tbl.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,0), dark_blue),
+            ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#dddddd')),
+            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+            ('PADDING', (0,0), (-1,-1), 5),
+            ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, light_bg]),
+        ]))
+        story.append(pl_it_tbl)
+    else:
+        story.append(Paragraph('No hay Packing List asociado a esta entrega.', body_style))
+
+    doc.build(story)
+    return response

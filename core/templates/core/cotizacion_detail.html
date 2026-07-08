@@ -1,0 +1,138 @@
+{% extends 'core/base.html' %}
+{% load static %}
+{% block title %}Cotización N° {{ cotizacion.numero_cotizacion|stringformat:"05d" }} — SIB Bark{% endblock %}
+{% block content %}
+<div class="d-flex align-items-center gap-2 mb-4">
+  <a href="{% url 'cotizacion_list' %}" class="btn btn-outline-secondary btn-sm">
+    <i data-lucide="arrow-left" style="width:16px;height:16px;"></i> Volver
+  </a>
+  <h1 class="h3 text-white m-0">Cotización N° {{ cotizacion.numero_cotizacion|stringformat:"05d" }}</h1>
+  <a href="{% url 'cotizacion_pdf' cotizacion.id %}" class="btn btn-success btn-sm ms-auto d-inline-flex align-items-center gap-1">
+    <i data-lucide="download" style="width:14px;height:14px;"></i> Descargar Cotización (PDF)
+  </a>
+</div>
+
+<div class="row g-4">
+  <!-- Info -->
+  <div class="col-lg-4">
+    <div class="card bg-dark text-white border border-secondary border-opacity-25 mb-3">
+      <div class="card-header bg-black bg-opacity-25 border-bottom border-secondary border-opacity-25">
+        <h5 class="card-title m-0">📋 Datos Generales</h5>
+      </div>
+      <div class="card-body small">
+        <dl class="row mb-0">
+          <dt class="col-sm-5 text-muted">Fecha</dt>
+          <dd class="col-sm-7">{{ cotizacion.fecha|date:"d/m/Y" }}</dd>
+          <dt class="col-sm-5 text-muted">Válido hasta</dt>
+          <dd class="col-sm-7">{{ cotizacion.valido_hasta|date:"d/m/Y"|default:"—" }}</dd>
+          <dt class="col-sm-5 text-muted">Cliente ID</dt>
+          <dd class="col-sm-7">{{ cotizacion.cliente_id|default:"—" }}</dd>
+          <dt class="col-sm-5 text-muted">Contacto</dt>
+          <dd class="col-sm-7">{{ cotizacion.contacto_nombre|default:"—" }} — {{ cotizacion.contacto_cargo|default:"" }}</dd>
+          <dt class="col-sm-5 text-muted">Razón Social</dt>
+          <dd class="col-sm-7">{{ cotizacion.razon_social|default:"—" }}</dd>
+          <dt class="col-sm-5 text-muted">RUT</dt>
+          <dd class="col-sm-7">{{ cotizacion.rut_receptor|default:"—" }}</dd>
+          <dt class="col-sm-5 text-muted">Ciudad</dt>
+          <dd class="col-sm-7">{{ cotizacion.ciudad_receptor|default:"—" }}</dd>
+          <dt class="col-sm-5 text-muted">OC Asociada</dt>
+          <dd class="col-sm-7">
+            {% if cotizacion.orden_compra %}
+              <a href="{% url 'project_detail' cotizacion.orden_compra.numero_oc %}" class="text-warning">{{ cotizacion.orden_compra.numero_oc }}</a>
+            {% else %}—{% endif %}
+          </dd>
+        </dl>
+      </div>
+    </div>
+    <!-- Totales -->
+    <div class="card bg-dark text-white border border-secondary border-opacity-25">
+      <div class="card-body">
+        <table class="table table-dark table-sm mb-0">
+          <tr><td class="text-muted">Sub Total</td><td class="text-end font-monospace">${{ cotizacion.subtotal|floatformat:0 }}</td></tr>
+          <tr><td class="text-muted">Impuesto 19%</td><td class="text-end font-monospace">${{ cotizacion.iva|floatformat:0 }}</td></tr>
+          <tr class="table-primary"><td><strong>Total</strong></td><td class="text-end font-monospace"><strong>${{ cotizacion.total|floatformat:0 }}</strong></td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Ítems -->
+  <div class="col-lg-8">
+    <div class="card bg-dark text-white border border-secondary border-opacity-25 mb-4">
+      <div class="card-header bg-black bg-opacity-25 border-bottom border-secondary border-opacity-25">
+        <h5 class="card-title m-0">📦 Ítems de la Cotización</h5>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-dark table-hover align-middle mb-0" style="font-size:0.82rem;">
+            <thead><tr>
+              <th>Descripción</th>
+              <th>Valor/kg</th>
+              <th>C/U</th>
+              <th>kg c/u</th>
+              <th>kg total</th>
+              <th class="text-end">Valor</th>
+              <th></th>
+            </tr></thead>
+            <tbody>
+              {% for item in items %}
+              <tr>
+                <td>
+                  <strong class="text-white">{{ item.descripcion }}</strong>
+                  {% if item.observacion %}<span class="d-block text-muted small">{{ item.observacion|truncatechars:80 }}</span>{% endif %}
+                </td>
+                <td class="font-monospace">${{ item.valor_kg|floatformat:0 }}</td>
+                <td>{{ item.cantidad }}</td>
+                <td class="font-monospace">{{ item.kg_por_unidad|floatformat:3 }}</td>
+                <td class="font-monospace">{{ item.kg_total|floatformat:3 }}</td>
+                <td class="text-end font-monospace">${{ item.valor|floatformat:0 }}</td>
+                <td>
+                  <a href="{% url 'cotizacion_item_delete' cotizacion.id item.id %}" class="btn btn-sm text-danger p-1">
+                    <i data-lucide="trash-2" style="width:14px;height:14px;"></i>
+                  </a>
+                </td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="7" class="text-center text-muted py-3">Sin ítems. Agrega uno abajo.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Formulario agregar ítem -->
+    <div class="card bg-dark text-white border border-secondary border-opacity-25">
+      <div class="card-header bg-black bg-opacity-25 border-bottom border-secondary border-opacity-25">
+        <h6 class="card-title m-0">➕ Agregar Ítem</h6>
+      </div>
+      <div class="card-body">
+        <form method="POST">
+          {% csrf_token %}
+          <input type="hidden" name="agregar_item" value="1">
+          <div class="row g-2">
+            <div class="col-12">
+              <label class="form-label small">Descripción</label>{{ item_form.descripcion }}
+            </div>
+            <div class="col-12">
+              <label class="form-label small">Observación</label>{{ item_form.observacion }}
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small">Valor por kg ($)</label>{{ item_form.valor_kg }}
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small">Cantidad</label>{{ item_form.cantidad }}
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small">kg por Unidad</label>{{ item_form.kg_por_unidad }}
+            </div>
+            <div class="col-12 text-end">
+              <button type="submit" class="btn btn-primary btn-sm">Agregar Ítem</button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,5 +1,9 @@
 from django import forms
-from .models import OrdenCompra, FMR, Entrega, Costo, ItemOC, Trazabilidad, PackingListItem, Factura, CostoMaterial, CostoManoObra
+from .models import (
+    OrdenCompra, FMR, Entrega, Costo, ItemOC, Trazabilidad, PackingListItem,
+    Factura, CostoMaterial, CostoManoObra, Cotizacion, ItemCotizacion,
+    GuiaDespacho, ItemGuia,
+)
 
 
 class OrdenCompraForm(forms.ModelForm):
@@ -121,23 +125,46 @@ class CostoForm(forms.ModelForm):
 class ItemOCForm(forms.ModelForm):
     class Meta:
         model = ItemOC
-        fields = ['linea', 'codigo', 'descripcion', 'unidad', 'cantidad', 'peso_unitario_kg', 'precio_unitario', 'cantidad_entregada']
+        # Solo los 4 campos que pidió el cliente. Los demás (linea, codigo, etc.)
+        # quedan en el modelo pero no aparecen en el formulario visible.
+        fields = ['descripcion', 'cantidad', 'size_code', 'peso']
         widgets = {
-            'linea': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej. 0001'}),
-            'codigo': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej. 1332SSK00402-SP00001'}),
-            'descripcion': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej. Soporte SP-1'}),
-            'unidad': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej. EA o KG'}),
-            'cantidad': forms.NumberInput(attrs={'class': 'form-control', 'placeholder': '1'}),
-            'peso_unitario_kg': forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'Masa en kg (opcional)'}),
-            'precio_unitario': forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'Moneda base'}),
-            'cantidad_entregada': forms.NumberInput(attrs={'class': 'form-control', 'placeholder': '0'}),
+            'descripcion':  forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Ej. Soporte SP-1, Brida, Codo 90°'
+            }),
+            'cantidad': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'placeholder': '1',
+                'step': '0.01'
+            }),
+            'size_code': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Ej. 6 IN, 200x35.9, 2" SCH40'
+            }),
+            'peso': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Peso total en kg',
+                'step': '0.01'
+            }),
+        }
+        labels = {
+            'descripcion': 'Marca (Nombre de la Pieza)',
+            'cantidad':    'Cantidad',
+            'size_code':   'Medidas',
+            'peso':        'Peso (kg)',
         }
 
 
 class PackingListItemForm(forms.ModelForm):
     class Meta:
         model = PackingListItem
-        fields = ['item_oc', 'cantidad', 'numero_bulto', 'largo_mt', 'ancho_mt', 'alto_mt', 'peso_kg']
+        fields = [
+            'item_oc', 'cantidad', 'numero_bulto',
+            'largo_mt', 'ancho_mt', 'alto_mt', 'peso_kg',
+            'modelo_soporte', 'medida_1', 'medida_2',
+            'diametro', 'alto_item', 'estado_item', 'unidades',
+        ]
         widgets = {
             'item_oc': forms.Select(attrs={'class': 'form-control'}),
             'cantidad': forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'Cant. despachada'}),
@@ -146,6 +173,17 @@ class PackingListItemForm(forms.ModelForm):
             'ancho_mt': forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'Ancho mt', 'step': '0.01'}),
             'alto_mt': forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'Alto mt', 'step': '0.01'}),
             'peso_kg': forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'Peso kg', 'step': '0.01'}),
+            'modelo_soporte': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej. SPS-100'}),
+            'medida_1': forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'Ø o L', 'step': '0.001'}),
+            'medida_2': forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'Alto o H', 'step': '0.001'}),
+            'diametro': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Diámetro / Ø (texto)'}),
+            'alto_item': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Alto (texto)'}),
+            'estado_item': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Estado'}),
+            'unidades': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Unidades'}),
+        }
+        labels = {
+            'medida_1': 'Medida 1 (Ø o L)',
+            'medida_2': 'Medida 2 (Alto o H)',
         }
 
     def __init__(self, *args, **kwargs):
@@ -213,4 +251,154 @@ class CostoManoObraForm(forms.ModelForm):
             'horas_normales':        'Horas normales',
             'horas_extra':           'Horas extra',
             'cantidad_trabajadores': 'N° trabajadores',
+        }
+
+
+from .models import Cargo, ManoDeObra, MateriaPrima, PackingList
+
+class MateriaPrimaForm(forms.ModelForm):
+    class Meta:
+        model = MateriaPrima
+        fields = ['producto', 'cantidad', 'valor_unitario', 'total']
+        widgets = {
+            'producto': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej. Gasto general, Acero A36'}),
+            'cantidad': forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'Cantidad (opcional)'}),
+            'valor_unitario': forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'Unitario'}),
+            'total': forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'Fijar total directo (opcional)'}),
+        }
+
+
+class ManoDeObraForm(forms.ModelForm):
+    class Meta:
+        model = ManoDeObra
+        fields = ['cargo', 'dias', 'horas', 'cantidad_trabajadores', 'horas_extra']
+        widgets = {
+            'cargo': forms.Select(attrs={'class': 'form-control'}),
+            'dias': forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'Días', 'min': 1}),
+            'horas': forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'Horas', 'min': 1}),
+            'cantidad_trabajadores': forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'N° trabajadores', 'min': 1}),
+            'horas_extra': forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'Horas extra', 'min': 0}),
+        }
+
+
+class PackingListForm(forms.ModelForm):
+    class Meta:
+        model = PackingList
+        fields = ['fecha_orden', 'fecha_envio', 'nombre_cliente', 'empresa', 'direccion', 'correo', 'telefono', 'tipo_medida']
+        widgets = {
+            'fecha_orden': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+            'fecha_envio': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+            'nombre_cliente': forms.TextInput(attrs={'class': 'form-control'}),
+            'empresa': forms.TextInput(attrs={'class': 'form-control'}),
+            'direccion': forms.TextInput(attrs={'class': 'form-control'}),
+            'correo': forms.TextInput(attrs={'class': 'form-control'}),
+            'telefono': forms.TextInput(attrs={'class': 'form-control'}),
+            'tipo_medida': forms.Select(attrs={'class': 'form-control'}),
+        }
+        labels = {
+            'tipo_medida': 'Formato de Columnas de Medida',
+        }
+
+
+# ── Cotización ──────────────────────────────────────────────────────────────
+
+class CotizacionForm(forms.ModelForm):
+    class Meta:
+        model = Cotizacion
+        fields = [
+            'fecha', 'valido_hasta', 'cliente_id', 'contacto_nombre', 'contacto_cargo',
+            'orden_compra', 'razon_social', 'giro', 'rut_receptor', 'direccion_receptor',
+            'ciudad_receptor', 'observaciones',
+        ]
+        widgets = {
+            'fecha': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+            'valido_hasta': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+            'cliente_id': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej. 1068'}),
+            'contacto_nombre': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej. Sr. Javier Palma'}),
+            'contacto_cargo': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Cargo del contacto'}),
+            'orden_compra': forms.Select(attrs={'class': 'form-control'}),
+            'razon_social': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Razón Social del cliente'}),
+            'giro': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Giro'}),
+            'rut_receptor': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'RUT'}),
+            'direccion_receptor': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Dirección'}),
+            'ciudad_receptor': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ciudad'}),
+            'observaciones': forms.Textarea(attrs={'class': 'form-control', 'rows': 3, 'placeholder': 'Notas adicionales'}),
+        }
+        labels = {
+            'orden_compra': 'Orden de Compra (opcional)',
+            'razon_social': 'Razón Social',
+            'rut_receptor': 'RUT',
+            'direccion_receptor': 'Dirección',
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['orden_compra'].required = False
+
+
+class ItemCotizacionForm(forms.ModelForm):
+    class Meta:
+        model = ItemCotizacion
+        fields = ['descripcion', 'observacion', 'valor_kg', 'cantidad', 'kg_por_unidad']
+        widgets = {
+            'descripcion': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej. Fabricación de Estructura'}),
+            'observacion': forms.Textarea(attrs={'class': 'form-control', 'rows': 2, 'placeholder': 'Detalle / observación'}),
+            'valor_kg': forms.NumberInput(attrs={'class': 'form-control', 'placeholder': '0', 'step': '1'}),
+            'cantidad': forms.NumberInput(attrs={'class': 'form-control', 'placeholder': '1', 'min': '1'}),
+            'kg_por_unidad': forms.NumberInput(attrs={'class': 'form-control', 'placeholder': '0.000', 'step': '0.001'}),
+        }
+        labels = {
+            'valor_kg': 'Valor por kg ($)',
+            'kg_por_unidad': 'kg por Unidad',
+        }
+
+
+# ── Guía de Despacho ─────────────────────────────────────────────────────────
+
+class GuiaDespachoForm(forms.ModelForm):
+    class Meta:
+        model = GuiaDespacho
+        fields = [
+            'numero_guia', 'fecha_emision',
+            'receptor_nombre', 'receptor_rut', 'receptor_giro',
+            'receptor_direccion', 'receptor_comuna', 'contacto',
+            'tipo_despacho', 'tipo_traslado',
+            'chofer_nombre', 'chofer_rut', 'patente', 'transportista_rut',
+            'direccion_destino',
+        ]
+        widgets = {
+            'numero_guia': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej. 1556'}),
+            'fecha_emision': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+            'receptor_nombre': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Razón Social'}),
+            'receptor_rut': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'RUT'}),
+            'receptor_giro': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Giro'}),
+            'receptor_direccion': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Dirección'}),
+            'receptor_comuna': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Comuna'}),
+            'contacto': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Persona que recibe'}),
+            'tipo_despacho': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej. Sin flete'}),
+            'tipo_traslado': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej. Operación propia'}),
+            'chofer_nombre': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Nombre del chofer'}),
+            'chofer_rut': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'RUT chofer'}),
+            'patente': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Patente'}),
+            'transportista_rut': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'RUT transportista'}),
+            'direccion_destino': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Dirección de destino'}),
+        }
+        labels = {
+            'numero_guia': 'N° Guía de Despacho',
+            'receptor_nombre': 'Razón Social Receptor',
+        }
+
+
+class ItemGuiaForm(forms.ModelForm):
+    class Meta:
+        model = ItemGuia
+        fields = ['descripcion', 'cantidad_unidad', 'precio_unitario']
+        widgets = {
+            'descripcion': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Descripción del artículo'}),
+            'cantidad_unidad': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej. 5 UN'}),
+            'precio_unitario': forms.NumberInput(attrs={'class': 'form-control', 'placeholder': '0', 'step': '1'}),
+        }
+        labels = {
+            'cantidad_unidad': 'Cantidad y Unidad',
+            'precio_unitario': 'Precio Unitario ($)',
         }

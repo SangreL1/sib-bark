@@ -145,6 +145,49 @@ class OrdenCompra(models.Model):
             return Decimal('0.00')
         return round((self.margen / self.valor_total) * 100, 2)
 
+    @property
+    def costo_total_mano_obra(self):
+        return self.manos_de_obra.aggregate(total=models.Sum('total'))['total'] or Decimal('0.00')
+
+    @property
+    def costo_total_materiales(self):
+        return self.materias_primas.aggregate(total=models.Sum('total'))['total'] or Decimal('0.00')
+
+    @property
+    def costo_total_trabajo(self):
+        return self.costo_total_mano_obra + self.costo_total_materiales
+
+    @property
+    def peso_total_kg(self):
+        return self.items.aggregate(total=models.Sum('peso'))['total'] or Decimal('0.00')
+
+    @property
+    def utilidad_real(self):
+        valor = self.valor_total or Decimal('0.00')
+        return valor - self.costo_total_trabajo
+
+    @property
+    def costo_por_kilo(self):
+        peso = self.peso_total_kg
+        if peso > 0:
+            return self.costo_total_trabajo / peso
+        return Decimal('0.00')
+
+    @property
+    def utilidad_por_kilo(self):
+        peso = self.peso_total_kg
+        if peso > 0:
+            return self.utilidad_real / peso
+        return Decimal('0.00')
+
+    @property
+    def porcentaje_utilidad(self):
+        valor = self.valor_total or Decimal('0.00')
+        if valor > 0:
+            return (self.utilidad_real / valor) * 100
+        return Decimal('0.00')
+
+
     def recalcular_porcentaje(self):
         """Recalculates % delivered based on ItemOC counts where available, otherwise falls back to Entrega records."""
         items = self.items.all()
@@ -204,6 +247,11 @@ class Entrega(models.Model):
         ('FACTURADO', 'Facturado'),
     ]
 
+    ESTADOS_FACTURACION = [
+        ('facturado', 'Facturado'),
+        ('por_facturar', 'Por facturar'),
+    ]
+
     orden_compra = models.ForeignKey(
         OrdenCompra, on_delete=models.CASCADE,
         related_name='entregas', verbose_name="Orden de Compra"
@@ -217,6 +265,11 @@ class Entrega(models.Model):
         max_length=100, choices=ESTADOS_ENTREGA,
         default='COMPLETA', verbose_name="Estado"
     )
+    estado_facturacion = models.CharField(
+        max_length=50, choices=ESTADOS_FACTURACION,
+        default='por_facturar', verbose_name="Estado de Facturación"
+    )
+
 
     def __str__(self):
         return f"Guía {self.guia_despacho} — {self.orden_compra.numero_oc}"
@@ -289,6 +342,14 @@ class ItemOC(models.Model):
     precio_unitario = models.DecimalField(max_digits=15, decimal_places=2, default=0.00, verbose_name="Precio Unitario")
     cantidad_entregada = models.DecimalField(max_digits=12, decimal_places=2, default=0.00, verbose_name="Cantidad Entregada")
 
+    # Nuevos campos del BOM real
+    item_code = models.CharField(max_length=100, blank=True, null=True, verbose_name="Item Code")
+    size_code = models.CharField(max_length=100, blank=True, null=True, verbose_name="Size Code")
+    uom = models.CharField(max_length=100, blank=True, null=True, verbose_name="UOM")
+    precio_total = models.DecimalField(max_digits=15, decimal_places=2, blank=True, null=True, verbose_name="Precio Total")
+    fecha_entrega = models.DateField(blank=True, null=True, verbose_name="Fecha de Entrega")
+    peso = models.DecimalField(max_digits=12, decimal_places=2, blank=True, null=True, verbose_name="Peso (kg)")
+
     @property
     def valor_total(self):
         return self.cantidad * self.precio_unitario
@@ -301,6 +362,11 @@ class ItemOC(models.Model):
 
     def __str__(self):
         return f"{self.linea} - {self.descripcion} ({self.codigo or ''})"
+
+    def save(self, *args, **kwargs):
+        if self.cantidad is not None and self.precio_unitario is not None:
+            self.precio_total = Decimal(self.cantidad) * Decimal(self.precio_unitario)
+        super().save(*args, **kwargs)
 
     class Meta:
         verbose_name = "Item de Orden de Compra"
@@ -325,6 +391,17 @@ class PackingListItem(models.Model):
     ancho_mt = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True, verbose_name="Ancho (mt)")
     alto_mt = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True, verbose_name="Alto (mt)")
     peso_kg = models.DecimalField(max_digits=12, decimal_places=2, blank=True, null=True, verbose_name="Peso (kg)")
+
+    # Campos custom para el reporte de calidad / Packing List del cliente
+    modelo_soporte = models.CharField(max_length=255, blank=True, null=True, verbose_name="Modelo Soporte")
+    # Campos legacy (se mantienen para no romper datos existentes)
+    diametro = models.CharField(max_length=100, blank=True, null=True, verbose_name="Diámetro / Ø")
+    alto_item = models.CharField(max_length=100, blank=True, null=True, verbose_name="Alto Item")
+    estado_item = models.CharField(max_length=100, blank=True, null=True, verbose_name="Estado de Item")
+    unidades = models.CharField(max_length=100, blank=True, null=True, verbose_name="Unidades")
+    # Campos genéricos de medida (Formato A: Ø+ALTO / Formato B: L+H)
+    medida_1 = models.DecimalField(max_digits=10, decimal_places=3, blank=True, null=True, verbose_name="Medida 1 (Ø o L)")
+    medida_2 = models.DecimalField(max_digits=10, decimal_places=3, blank=True, null=True, verbose_name="Medida 2 (Alto o H)")
 
     def __str__(self):
         return f"{self.numero_bulto or 'Bulto'} - {self.item_oc.descripcion} ({self.cantidad})"
@@ -505,3 +582,288 @@ class CostoManoObra(models.Model):
         verbose_name = "Costo de Mano de Obra"
         verbose_name_plural = "Costos de Mano de Obra"
         ordering = ['cargo']
+
+
+class Cargo(models.Model):
+    nombre = models.CharField(max_length=255, verbose_name="Nombre del Cargo")
+    precio_hora = models.DecimalField(max_digits=12, decimal_places=2, verbose_name="Precio por Hora ($)")
+
+    def __str__(self):
+        return f"{self.nombre} (${self.precio_hora}/hr)"
+
+    class Meta:
+        verbose_name = "Cargo"
+        verbose_name_plural = "Cargos"
+        ordering = ['nombre']
+
+
+class ManoDeObra(models.Model):
+    orden_compra = models.ForeignKey(
+        OrdenCompra, on_delete=models.CASCADE,
+        related_name='manos_de_obra', verbose_name="Orden de Compra"
+    )
+    cargo = models.ForeignKey(Cargo, on_delete=models.PROTECT, verbose_name="Cargo")
+    dias = models.IntegerField(verbose_name="Días")
+    horas = models.IntegerField(verbose_name="Horas")
+    cantidad_trabajadores = models.IntegerField(verbose_name="Cantidad de Trabajadores")
+    horas_extra = models.IntegerField(default=0, verbose_name="Horas Extra")
+
+    # Campos calculados persistidos en BD
+    costo_por_trabajador = models.DecimalField(max_digits=15, decimal_places=2, null=True, blank=True, verbose_name="Costo por Trabajador")
+    mano_obra_base = models.DecimalField(max_digits=15, decimal_places=2, null=True, blank=True, verbose_name="Mano de Obra Base")
+    costo_horas_extra = models.DecimalField(max_digits=15, decimal_places=2, null=True, blank=True, verbose_name="Costo Horas Extra")
+    total = models.DecimalField(max_digits=15, decimal_places=2, null=True, blank=True, verbose_name="Total ($)")
+
+    def save(self, *args, **kwargs):
+        # Fórmulas solicitadas:
+        # costo_por_trabajador = cargo.precio_hora * dias * horas
+        # mano_obra_base = costo_por_trabajador * cantidad_trabajadores
+        # costo_horas_extra = horas_extra * cargo.precio_hora
+        # total = mano_obra_base + costo_horas_extra
+        precio = self.cargo.precio_hora
+        self.costo_por_trabajador = Decimal(precio) * Decimal(self.dias) * Decimal(self.horas)
+        self.mano_obra_base = Decimal(self.costo_por_trabajador) * Decimal(self.cantidad_trabajadores)
+        self.costo_horas_extra = Decimal(self.horas_extra) * Decimal(precio)
+        self.total = Decimal(self.mano_obra_base) + Decimal(self.costo_horas_extra)
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"MO: {self.cargo.nombre} × {self.cantidad_trabajadores} — OC {self.orden_compra.numero_oc}"
+
+    class Meta:
+        verbose_name = "Mano de Obra (Detallada)"
+        verbose_name_plural = "Mano de Obra (Detallada)"
+
+
+class MateriaPrima(models.Model):
+    orden_compra = models.ForeignKey(
+        OrdenCompra, on_delete=models.CASCADE,
+        related_name='materias_primas', verbose_name="Orden de Compra"
+    )
+    producto = models.CharField(max_length=255, verbose_name="Producto / Detalle")
+    cantidad = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True, verbose_name="Cantidad")
+    valor_unitario = models.DecimalField(max_digits=15, decimal_places=2, verbose_name="Valor Unitario ($)")
+    total = models.DecimalField(max_digits=15, decimal_places=2, blank=True, null=True, verbose_name="Total ($)")
+
+    def save(self, *args, **kwargs):
+        if self.cantidad is not None:
+            self.total = Decimal(self.cantidad) * Decimal(self.valor_unitario)
+        # Si la cantidad no existe, total se ingresa directamente y se conserva
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"MP: {self.producto} — OC {self.orden_compra.numero_oc}"
+
+    class Meta:
+        verbose_name = "Materia Prima (Detallada)"
+        verbose_name_plural = "Materias Primas (Detalladas)"
+
+
+class PackingList(models.Model):
+    TIPO_MEDIDA_CHOICES = [
+        ('diametro_alto', 'Ø / Alto'),
+        ('largo_alto', 'L / H'),
+    ]
+
+    numero_correlativo = models.IntegerField(unique=True, null=True, blank=True, verbose_name="Número Correlativo")
+    orden_compra = models.ForeignKey(
+        OrdenCompra, on_delete=models.CASCADE,
+        related_name='packing_lists', verbose_name="Orden de Compra"
+    )
+    entrega = models.ForeignKey(
+        Entrega, on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='packing_lists', verbose_name="Despacho / Entrega"
+    )
+    fecha_orden = models.DateField(verbose_name="Fecha de Orden")
+    fecha_envio = models.DateField(verbose_name="Fecha de Envío")
+    nombre_cliente = models.CharField(max_length=255, verbose_name="Nombre del Cliente")
+    empresa = models.CharField(max_length=255, default="MAESTRANZA BARK SPA", verbose_name="Empresa")
+    direccion = models.CharField(max_length=255, default="Camino F-30-E N° 1200, Quintero, Valparaíso", verbose_name="Dirección")
+    correo = models.CharField(max_length=255, default="contacto@maestranzabark.cl", verbose_name="Correo")
+    telefono = models.CharField(max_length=255, default="+56 9 1234 5678", verbose_name="Teléfono")
+    tipo_medida = models.CharField(
+        max_length=20,
+        choices=TIPO_MEDIDA_CHOICES,
+        default='diametro_alto',
+        verbose_name="Formato de Columnas"
+    )
+
+    @property
+    def col_medida_1(self):
+        return 'Ø' if self.tipo_medida == 'diametro_alto' else 'L'
+
+    @property
+    def col_medida_2(self):
+        return 'ALTO' if self.tipo_medida == 'diametro_alto' else 'H'
+
+    def save(self, *args, **kwargs):
+        if not self.numero_correlativo:
+            from django.db import transaction
+            with transaction.atomic():
+                max_val = PackingList.objects.select_for_update().aggregate(max_val=models.Max('numero_correlativo'))['max_val']
+                self.numero_correlativo = (max_val or 0) + 1
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"Packing List N° {self.numero_correlativo} — OC {self.orden_compra_id}"
+
+    class Meta:
+        verbose_name = "Packing List"
+        verbose_name_plural = "Packing Lists"
+        ordering = ['-numero_correlativo']
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# COTIZACIÓN — Documento de presupuesto previo a la OC
+# ──────────────────────────────────────────────────────────────────────────────
+
+class Cotizacion(models.Model):
+    numero_cotizacion = models.IntegerField(unique=True, null=True, blank=True, verbose_name="N° Cotización")
+    fecha = models.DateField(verbose_name="Fecha")
+    valido_hasta = models.DateField(null=True, blank=True, verbose_name="Válido hasta")
+    cliente_id = models.CharField(max_length=100, blank=True, null=True, verbose_name="Cliente ID")
+    contacto_nombre = models.CharField(max_length=255, blank=True, null=True, verbose_name="Nombre Contacto")
+    contacto_cargo = models.CharField(max_length=255, blank=True, null=True, verbose_name="Cargo Contacto")
+    orden_compra = models.ForeignKey(
+        OrdenCompra, on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='cotizaciones', verbose_name="Orden de Compra"
+    )
+    # Datos del receptor (Razón Social cliente, para PDF)
+    razon_social = models.CharField(max_length=255, blank=True, null=True, verbose_name="Razón Social")
+    giro = models.CharField(max_length=255, blank=True, null=True, verbose_name="Giro")
+    rut_receptor = models.CharField(max_length=20, blank=True, null=True, verbose_name="RUT")
+    direccion_receptor = models.CharField(max_length=255, blank=True, null=True, verbose_name="Dirección")
+    ciudad_receptor = models.CharField(max_length=100, blank=True, null=True, verbose_name="Ciudad")
+    observaciones = models.TextField(blank=True, null=True, verbose_name="Observaciones / Notas")
+
+    def save(self, *args, **kwargs):
+        if not self.numero_cotizacion:
+            from django.db import transaction
+            with transaction.atomic():
+                max_val = Cotizacion.objects.select_for_update().aggregate(max_val=models.Max('numero_cotizacion'))['max_val']
+                self.numero_cotizacion = (max_val or 0) + 1
+        super().save(*args, **kwargs)
+
+    @property
+    def subtotal(self):
+        return sum(item.valor for item in self.items.all())
+
+    @property
+    def iva(self):
+        return self.subtotal * Decimal('0.19')
+
+    @property
+    def total(self):
+        return self.subtotal + self.iva
+
+    def __str__(self):
+        return f"Cotización N° {self.numero_cotizacion}"
+
+    class Meta:
+        verbose_name = "Cotización"
+        verbose_name_plural = "Cotizaciones"
+        ordering = ['-numero_cotizacion']
+
+
+class ItemCotizacion(models.Model):
+    cotizacion = models.ForeignKey(
+        Cotizacion, on_delete=models.CASCADE,
+        related_name='items', verbose_name="Cotización"
+    )
+    descripcion = models.CharField(max_length=500, verbose_name="Descripción")
+    observacion = models.TextField(blank=True, null=True, verbose_name="Observación / Detalle")
+    valor_kg = models.DecimalField(max_digits=15, decimal_places=2, default=0, verbose_name="Valor por kg ($)")
+    cantidad = models.IntegerField(default=1, verbose_name="Cantidad")
+    kg_por_unidad = models.DecimalField(max_digits=12, decimal_places=3, default=0, verbose_name="kg por Unidad")
+
+    @property
+    def kg_total(self):
+        return Decimal(str(self.cantidad)) * self.kg_por_unidad
+
+    @property
+    def valor(self):
+        return self.valor_kg * self.kg_total
+
+    def __str__(self):
+        return f"{self.descripcion} — Cot. {self.cotizacion_id}"
+
+    class Meta:
+        verbose_name = "Ítem de Cotización"
+        verbose_name_plural = "Ítems de Cotización"
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# GUÍA DE DESPACHO — Modelo estructurado (reemplaza campo de texto 'guia_despacho')
+# ──────────────────────────────────────────────────────────────────────────────
+
+class GuiaDespacho(models.Model):
+    numero_guia = models.CharField(max_length=50, unique=True, verbose_name="N° Guía de Despacho")
+    entrega = models.OneToOneField(
+        Entrega, on_delete=models.CASCADE,
+        related_name='guia_despacho_obj', verbose_name="Entrega / Despacho"
+    )
+    fecha_emision = models.DateField(verbose_name="Fecha de Emisión")
+
+    # Datos del receptor
+    receptor_nombre = models.CharField(max_length=255, blank=True, null=True, verbose_name="Razón Social Receptor")
+    receptor_rut = models.CharField(max_length=20, blank=True, null=True, verbose_name="RUT Receptor")
+    receptor_giro = models.CharField(max_length=255, blank=True, null=True, verbose_name="Giro Receptor")
+    receptor_direccion = models.CharField(max_length=255, blank=True, null=True, verbose_name="Dirección Receptor")
+    receptor_comuna = models.CharField(max_length=100, blank=True, null=True, verbose_name="Comuna Receptor")
+    contacto = models.CharField(max_length=255, blank=True, null=True, verbose_name="Contacto / Persona que Recibe")
+
+    # Datos de transporte
+    tipo_despacho = models.CharField(max_length=100, blank=True, null=True, verbose_name="Tipo de Despacho")
+    tipo_traslado = models.CharField(max_length=100, blank=True, null=True, verbose_name="Tipo de Traslado")
+    chofer_nombre = models.CharField(max_length=255, blank=True, null=True, verbose_name="Nombre Chofer")
+    chofer_rut = models.CharField(max_length=20, blank=True, null=True, verbose_name="RUT Chofer")
+    patente = models.CharField(max_length=20, blank=True, null=True, verbose_name="Patente")
+    transportista_rut = models.CharField(max_length=20, blank=True, null=True, verbose_name="RUT Transportista")
+    direccion_destino = models.CharField(max_length=400, blank=True, null=True, verbose_name="Dirección de Destino")
+
+    @property
+    def monto_neto(self):
+        return sum(item.total for item in self.items_guia.all())
+
+    @property
+    def iva(self):
+        return self.monto_neto * Decimal('0.19')
+
+    @property
+    def monto_total(self):
+        return self.monto_neto + self.iva
+
+    def __str__(self):
+        return f"Guía N° {self.numero_guia}"
+
+    class Meta:
+        verbose_name = "Guía de Despacho"
+        verbose_name_plural = "Guías de Despacho"
+        ordering = ['-fecha_emision']
+
+
+class ItemGuia(models.Model):
+    guia = models.ForeignKey(
+        GuiaDespacho, on_delete=models.CASCADE,
+        related_name='items_guia', verbose_name="Guía de Despacho"
+    )
+    descripcion = models.CharField(max_length=500, verbose_name="Descripción")
+    cantidad_unidad = models.CharField(max_length=50, blank=True, null=True, verbose_name="Cantidad / Unidad")
+    precio_unitario = models.DecimalField(max_digits=15, decimal_places=2, default=0, verbose_name="Precio Unitario ($)")
+
+    @property
+    def total(self):
+        try:
+            qty = Decimal(str(self.cantidad_unidad).split()[0])
+        except Exception:
+            qty = Decimal('1')
+        return self.precio_unitario * qty
+
+    def __str__(self):
+        return f"{self.descripcion} — Guía {self.guia_id}"
+
+    class Meta:
+        verbose_name = "Ítem de Guía"
+        verbose_name_plural = "Ítems de Guía"

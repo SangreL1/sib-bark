@@ -1,0 +1,60 @@
+{% extends 'core/base.html' %}
+{% block title %}Cotizaciones — SIB Bark{% endblock %}
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <h1 class="h3 text-white m-0">📄 Cotizaciones</h1>
+  <a href="{% url 'cotizacion_create' %}" class="btn btn-primary d-inline-flex align-items-center gap-1">
+    <i data-lucide="plus-circle" style="width:16px;height:16px;"></i> Nueva Cotización
+  </a>
+</div>
+
+<div class="card bg-dark text-white border border-secondary border-opacity-25">
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-dark table-hover align-middle mb-0" style="font-size:0.88rem;">
+        <thead class="table-black">
+          <tr>
+            <th>N° Cot.</th>
+            <th>Fecha</th>
+            <th>Válido hasta</th>
+            <th>Cliente ID</th>
+            <th>Razón Social</th>
+            <th>OC Asociada</th>
+            <th class="text-end">Total</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for cot in cotizaciones %}
+          <tr>
+            <td><strong class="text-info">N° {{ cot.numero_cotizacion|stringformat:"05d" }}</strong></td>
+            <td>{{ cot.fecha|date:"d/m/Y" }}</td>
+            <td>{{ cot.valido_hasta|date:"d/m/Y"|default:"—" }}</td>
+            <td>{{ cot.cliente_id|default:"—" }}</td>
+            <td>{{ cot.razon_social|default:"—" }}</td>
+            <td>
+              {% if cot.orden_compra %}
+                <a href="{% url 'project_detail' cot.orden_compra.numero_oc %}" class="text-warning">{{ cot.orden_compra.numero_oc }}</a>
+              {% else %}—{% endif %}
+            </td>
+            <td class="text-end font-monospace">${{ cot.total|floatformat:0 }}</td>
+            <td>
+              <div class="d-flex gap-1">
+                <a href="{% url 'cotizacion_detail' cot.id %}" class="btn btn-outline-info btn-sm" title="Ver detalle">
+                  <i data-lucide="eye" style="width:14px;height:14px;"></i>
+                </a>
+                <a href="{% url 'cotizacion_pdf' cot.id %}" class="btn btn-outline-success btn-sm" title="Descargar PDF">
+                  <i data-lucide="download" style="width:14px;height:14px;"></i>
+                </a>
+              </div>
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="8" class="text-center text-muted py-4">No hay cotizaciones registradas.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

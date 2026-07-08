@@ -1,0 +1,284 @@
+{% extends 'core/base.html' %}
+{% load static custom_filters %}
+
+{% block title %}Rendición OC {{ project.numero_oc }} - SIB Bark{% endblock %}
+
+{% block content %}
+<div class="row align-items-center mb-4">
+  <div class="col-md-8">
+    <div class="d-flex align-items-center gap-2">
+      <a href="{% url 'project_detail' project.numero_oc %}" class="btn btn-outline-secondary btn-sm" style="min-height:36px;">
+        <i data-lucide="arrow-left" style="width:16px;height:16px;"></i> Volver
+      </a>
+      <h1 class="h3 m-0 text-white">Rendición Financiera</h1>
+    </div>
+    <p class="text-muted m-0 mt-1">Órden de Compra: <strong class="text-white">{{ project.numero_oc }}</strong> | Cliente: <strong class="text-white">{{ project.cliente }}</strong></p>
+  </div>
+  <div class="col-md-4 text-md-end mt-3 mt-md-0 d-flex justify-content-md-end align-items-center gap-2">
+    <a href="{% url 'export_rendicion_csv' project.numero_oc %}" class="btn btn-outline-success btn-sm d-inline-flex align-items-center gap-1" style="min-height:36px;">
+      <i data-lucide="download" style="width:16px;height:16px;"></i> Exportar Excel
+    </a>
+    <span class="badge {% if project.porcentaje_utilidad > 0 %}bg-success{% else %}bg-danger{% endif %} fs-6 p-2">
+      Margen: {{ project.porcentaje_utilidad|floatformat:2 }}%
+    </span>
+  </div>
+</div>
+
+<!-- Grid de Indicadores Financieros (Cartas Oscuras con Bordes Acoplados) -->
+<div class="row g-3 mb-4">
+  <div class="col-md-3 col-sm-6">
+    <div class="p-3 rounded bg-dark border border-secondary border-opacity-25 h-100 flex-column justify-content-between d-flex">
+      <span class="text-muted d-block mb-1" style="font-size:0.8rem; text-transform:uppercase; letter-spacing:0.5px;">Mano de Obra Total</span>
+      <h3 class="m-0 text-white">{{ project.costo_total_mano_obra|clp }}</h3>
+    </div>
+  </div>
+  <div class="col-md-3 col-sm-6">
+    <div class="p-3 rounded bg-dark border border-secondary border-opacity-25 h-100 flex-column justify-content-between d-flex">
+      <span class="text-muted d-block mb-1" style="font-size:0.8rem; text-transform:uppercase; letter-spacing:0.5px;">Materiales / Materia Prima</span>
+      <h3 class="m-0 text-white">{{ project.costo_total_materiales|clp }}</h3>
+    </div>
+  </div>
+  <div class="col-md-3 col-sm-6">
+    <div class="p-3 rounded bg-dark border border-secondary border-opacity-25 h-100 flex-column justify-content-between d-flex">
+      <span class="text-muted d-block mb-1" style="font-size:0.8rem; text-transform:uppercase; letter-spacing:0.5px;">Costo Total Trabajo</span>
+      <h3 class="m-0 text-amber" style="color: #fbbf24;">{{ project.costo_total_trabajo|clp }}</h3>
+    </div>
+  </div>
+  <div class="col-md-3 col-sm-6">
+    <div class="p-3 rounded bg-dark border border-secondary border-opacity-25 h-100 flex-column justify-content-between d-flex">
+      <span class="text-muted d-block mb-1" style="font-size:0.8rem; text-transform:uppercase; letter-spacing:0.5px;">Total Ingreso (SIN IVA)</span>
+      <h3 class="m-0 text-info font-monospace">{{ project.valor_total|clp }}</h3>
+    </div>
+  </div>
+
+  <div class="col-md-3 col-sm-6">
+    <div class="p-3 rounded bg-dark border border-secondary border-opacity-25 h-100 flex-column justify-content-between d-flex">
+      <span class="text-muted d-block mb-1" style="font-size:0.8rem; text-transform:uppercase; letter-spacing:0.5px;">Utilidad Real</span>
+      <h3 class="m-0 {% if project.utilidad_real > 0 %}text-success{% else %}text-danger{% endif %}">{{ project.utilidad_real|clp }}</h3>
+    </div>
+  </div>
+  <div class="col-md-3 col-sm-6">
+    <div class="p-3 rounded bg-dark border border-secondary border-opacity-25 h-100 flex-column justify-content-between d-flex">
+      <span class="text-muted d-block mb-1" style="font-size:0.8rem; text-transform:uppercase; letter-spacing:0.5px;">Peso Total (Fabricado)</span>
+      <h3 class="m-0 text-white font-monospace">{{ project.peso_total_kg|floatformat:2 }} kg</h3>
+    </div>
+  </div>
+  <div class="col-md-3 col-sm-6">
+    <div class="p-3 rounded bg-dark border border-secondary border-opacity-25 h-100 flex-column justify-content-between d-flex">
+      <span class="text-muted d-block mb-1" style="font-size:0.8rem; text-transform:uppercase; letter-spacing:0.5px;">Costo por Kilo</span>
+      <h3 class="m-0 text-white font-monospace">{{ project.costo_por_kilo|clp }}/kg</h3>
+    </div>
+  </div>
+  <div class="col-md-3 col-sm-6">
+    <div class="p-3 rounded bg-dark border border-secondary border-opacity-25 h-100 flex-column justify-content-between d-flex">
+      <span class="text-muted d-block mb-1" style="font-size:0.8rem; text-transform:uppercase; letter-spacing:0.5px;">Utilidad por Kilo</span>
+      <h3 class="m-0 {% if project.utilidad_por_kilo > 0 %}text-success{% else %}text-danger{% endif %} font-monospace">{{ project.utilidad_por_kilo|clp }}/kg</h3>
+    </div>
+  </div>
+</div>
+
+<!-- Tabla Resumen Rendición (horizontal, como la planilla del cliente) -->
+<div class="card bg-dark text-white border border-secondary border-opacity-25 mb-4">
+  <div class="card-header bg-black bg-opacity-25 border-bottom border-secondary border-opacity-25 d-flex align-items-center gap-2">
+    <i data-lucide="bar-chart-2" class="text-warning"></i>
+    <h5 class="card-title m-0">Resumen Rendición Financiera</h5>
+  </div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-dark align-middle mb-0 border-secondary border-opacity-25" style="font-size:0.85rem;">
+        <thead>
+          <tr style="background:rgba(245,158,11,.15);">
+            <th class="text-center py-2 px-3" style="border-color:rgba(255,255,255,.1);">Materiales</th>
+            <th class="text-center py-2 px-3" style="border-color:rgba(255,255,255,.1);">Costo Total del Trabajo</th>
+            <th class="text-center py-2 px-3" style="border-color:rgba(255,255,255,.1);">Total (sin IVA)</th>
+            <th class="text-center py-2 px-3" style="border-color:rgba(255,255,255,.1);">Utilidad Real</th>
+            <th class="text-center py-2 px-3" style="border-color:rgba(255,255,255,.1);">Kilos</th>
+            <th class="text-center py-2 px-3" style="border-color:rgba(255,255,255,.1);">Costo por Kilo</th>
+            <th class="text-center py-2 px-3" style="border-color:rgba(255,255,255,.1);">Utilidad por Kilo</th>
+            <th class="text-center py-2 px-3" style="border-color:rgba(255,255,255,.1);">% Utilidad</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="text-center font-monospace">{{ project.costo_total_materiales|clp }}</td>
+            <td class="text-center font-monospace text-warning">{{ project.costo_total_trabajo|clp }}</td>
+            <td class="text-center font-monospace text-info">{{ project.valor_total|clp }}</td>
+            <td class="text-center font-monospace {% if project.utilidad_real > 0 %}text-success{% else %}text-danger{% endif %}">{{ project.utilidad_real|clp }}</td>
+            <td class="text-center font-monospace">{{ project.peso_total_kg|floatformat:2 }} kg</td>
+            <td class="text-center font-monospace">{{ project.costo_por_kilo|clp }}/kg</td>
+            <td class="text-center font-monospace {% if project.utilidad_por_kilo > 0 %}text-success{% else %}text-danger{% endif %}">{{ project.utilidad_por_kilo|clp }}/kg</td>
+            <td class="text-center font-monospace fw-bold {% if project.porcentaje_utilidad > 0 %}text-success{% else %}text-danger{% endif %}">{{ project.porcentaje_utilidad|floatformat:2 }}%</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="row g-4">
+  <!-- Carga de Mano de Obra Detallada -->
+  <div class="col-lg-6">
+    <div class="card bg-dark text-white border border-secondary border-opacity-25 h-100">
+      <div class="card-header bg-black bg-opacity-25 border-bottom border-secondary border-opacity-25">
+        <h5 class="card-title m-0 d-flex align-items-center gap-2">
+          <i data-lucide="users" class="text-info"></i> Registrar Mano de Obra
+        </h5>
+      </div>
+      <div class="card-body">
+        <form method="POST" action="{% url 'add_mo_detallada' project.numero_oc %}">
+          {% csrf_token %}
+          <div class="row g-3">
+            <div class="col-12">
+              <label class="form-label">Cargo Administrativo / Taller</label>
+              <select name="cargo" class="form-select bg-black text-white border-secondary border-opacity-50" required>
+                <option value="">Seleccione Cargo...</option>
+                {% for c in cargos %}
+                  <option value="{{ c.id }}">{{ c.nombre }} (${{ c.precio_hora|floatformat:0 }}/h)</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label">Días Trabajados</label>
+              <input type="number" name="dias" value="1" min="1" class="form-control bg-black text-white border-secondary border-opacity-50" required>
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label">Horas por Día</label>
+              <input type="number" name="horas" value="8" min="1" class="form-control bg-black text-white border-secondary border-opacity-50" required>
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label">Cantidad de Trabajadores</label>
+              <input type="number" name="cantidad_trabajadores" value="1" min="1" class="form-control bg-black text-white border-secondary border-opacity-50" required>
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label">Total Horas Extra (Opcional)</label>
+              <input type="number" name="horas_extra" value="0" min="0" class="form-control bg-black text-white border-secondary border-opacity-50">
+            </div>
+            <div class="col-12 text-end">
+              <button type="submit" class="btn btn-primary d-inline-flex align-items-center gap-1">
+                <i data-lucide="plus" style="width:16px;height:16px;"></i> Cargar Mano de Obra
+              </button>
+            </div>
+          </div>
+        </form>
+
+        <hr class="border-secondary border-opacity-25 my-4">
+
+        <h6 class="text-white mb-3">Detalle Cargado:</h6>
+        <div class="table-responsive">
+          <table class="table table-dark table-hover align-middle border-secondary border-opacity-25" style="font-size: 0.85rem;">
+            <thead>
+              <tr class="table-black">
+                <th>Cargo</th>
+                <th class="text-center">Cant.</th>
+                <th class="text-center">Días/Hs</th>
+                <th class="text-center">Extra Hs</th>
+                <th class="text-end">Total Cast.</th>
+                <th>Acción</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for mo in manos_obra %}
+                <tr>
+                  <td>
+                    <strong class="text-info">{{ mo.cargo.nombre }}</strong>
+                  </td>
+                  <td class="text-center font-monospace">{{ mo.cantidad_trabajadores }}</td>
+                  <td class="text-center">{{ mo.dias }}d / {{ mo.horas }}h</td>
+                  <td class="text-center text-warning font-monospace">{{ mo.horas_extra }}</td>
+                  <td class="text-end text-success font-monospace">{{ mo.total|clp }}</td>
+                  <td>
+                    <a href="{% url 'delete_mo_detallada' project.numero_oc mo.id %}" class="btn btn-sm btn-clear-danger text-danger p-1" style="min-height:30px;">
+                      <i data-lucide="trash-2" style="width:15px;height:15px;"></i>
+                    </a>
+                  </td>
+                </tr>
+              {% empty %}
+                <tr>
+                  <td colspan="6" class="text-center text-muted py-3">No hay registros detallados de mano de obra.</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Carga de Materia Prima Detallada -->
+  <div class="col-lg-6">
+    <div class="card bg-dark text-white border border-secondary border-opacity-25 h-100">
+      <div class="card-header bg-black bg-opacity-25 border-bottom border-secondary border-opacity-25">
+        <h5 class="card-title m-0 d-flex align-items-center gap-2">
+          <i data-lucide="package" class="text-warning"></i> Registrar Materia Prima
+        </h5>
+      </div>
+      <div class="card-body">
+        <form method="POST" action="{% url 'add_materia_prima' project.numero_oc %}">
+          {% csrf_token %}
+          <div class="row g-3">
+            <div class="col-12">
+              <label class="form-label">Descripción Producto / Insumo</label>
+              <input type="text" name="producto" placeholder="Ej. Perfiles Acero, Pintura Epóxica, Oxígeno..." class="form-control bg-black text-white border-secondary border-opacity-50" required autocomplete="off">
+            </div>
+            <div class="col-sm-4">
+              <label class="form-label">Cantidad (Opcional)</label>
+              <input type="number" step="0.01" name="cantidad" placeholder="Opcional" class="form-control bg-black text-white border-secondary border-opacity-50">
+            </div>
+            <div class="col-sm-4">
+              <label class="form-label">Valor Unitario</label>
+              <input type="number" name="valor_unitario" placeholder="Valor ($)" class="form-control bg-black text-white border-secondary border-opacity-50">
+            </div>
+            <div class="col-sm-4">
+              <label class="form-label">Costo Fijo Directo</label>
+              <input type="number" name="total" placeholder="Pestaña total" class="form-control bg-black text-white border-secondary border-opacity-50">
+            </div>
+            <div class="col-12 text-end">
+              <button type="submit" class="btn btn-primary d-inline-flex align-items-center gap-1">
+                <i data-lucide="plus" style="width:16px;height:16px;"></i> Registrar Compra/Insumo
+              </button>
+            </div>
+          </div>
+        </form>
+
+        <hr class="border-secondary border-opacity-25 my-4">
+
+        <h6 class="text-white mb-3">Detalle Cargado:</h6>
+        <div class="table-responsive">
+          <table class="table table-dark table-hover align-middle border-secondary border-opacity-25" style="font-size: 0.85rem;">
+            <thead>
+              <tr class="table-black">
+                <th>Producto / Detalle</th>
+                <th class="text-center">Cantidad</th>
+                <th class="text-end">V. Unitario</th>
+                <th class="text-end">Costo Total</th>
+                <th>Acción</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for mp in materias_primas %}
+                <tr>
+                  <td>
+                    <strong class="text-white">{{ mp.producto }}</strong>
+                  </td>
+                  <td class="text-center font-monospace">{{ mp.cantidad|default:"—" }}</td>
+                  <td class="text-end font-monospace">{{ mp.valor_unitario|clp }}</td>
+                  <td class="text-end text-success font-monospace">{{ mp.total|clp }}</td>
+                  <td>
+                    <a href="{% url 'delete_materia_prima' project.numero_oc mp.id %}" class="btn btn-sm btn-clear-danger text-danger p-1" style="min-height:30px;">
+                      <i data-lucide="trash-2" style="width:15px;height:15px;"></i>
+                    </a>
+                  </td>
+                </tr>
+              {% empty %}
+                <tr>
+                  <td colspan="5" class="text-center text-muted py-3">No hay registros detallados de materias primas.</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

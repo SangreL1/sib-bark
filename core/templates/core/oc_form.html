@@ -18,7 +18,46 @@
     </div>
   </div>
 
-  <form method="POST" class="card-flat" enctype="multipart/form-data">
+  {% if is_create %}
+  <!-- Herramienta de Lectura Automática -->
+  <div class="card-flat mb-4" style="background: rgba(139,92,246, 0.05); border: 1px solid rgba(139,92,246, 0.3);">
+    <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+      <div>
+        <h4 style="font-size:14px; font-weight:700; color:var(--purple); margin:0; display:flex; align-items:center; gap:6px;">
+          <i data-lucide="scan-text" style="width:16px;height:16px;"></i> Extraer datos desde PDF o Excel
+        </h4>
+        <p style="font-size:12px; color:var(--txt-2); margin-top:4px;">
+          Sube la OC original. El sistema intentará pre-cargar automáticamente los campos (N° OC, Cliente, Proyecto, Fechas y Totales).
+          Si un dato no se detecta, deberás ingresarlo manualmente.
+        </p>
+      </div>
+    </div>
+    <div style="margin-top:12px; display:flex; gap:10px; align-items:center;">
+      <input type="file" id="autoExtractFile" accept=".pdf, .xlsx, .xls" class="form-control form-control-sm" style="max-width:300px; background:var(--bg-2);">
+      <button type="button" id="btnAutoExtract" class="btn btn-primary btn-sm d-inline-flex align-items-center gap-1">
+        <i data-lucide="zap" style="width:14px;height:14px;"></i> Analizar
+      </button>
+      <span id="autoExtractStatus" style="font-size:12px; display:none; flex-align:center; gap:4px;"></span>
+    </div>
+
+    <!-- Contenedor para previsualizar los items extraídos -->
+    <div id="previewItems" style="display:none; margin-top:20px; border-top:1px dashed rgba(139,92,246, 0.4); padding-top:16px;">
+       <h5 style="font-size:13px; font-weight:700; color:var(--txt); margin-bottom:12px;">Vista Previa de Materiales a Importar</h5>
+       <div class="table-responsive">
+          <table class="table" style="font-size:11px; margin-bottom:0;" id="previewItemsTable">
+             <thead>
+                <tr style="background:rgba(255,255,255,0.03);">
+                   <th>Línea</th><th>Item Code</th><th>Size Code</th><th>Descripción</th><th>Cant</th><th>UM</th><th>P.Unit</th><th>P.Total</th><th>Entrega</th>
+                </tr>
+             </thead>
+             <tbody></tbody>
+          </table>
+       </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <form method="POST" class="card-flat" id="ocFormMain" enctype="multipart/form-data">
     {% csrf_token %}
 
     <!-- 1. Identificación -->
@@ -210,6 +249,10 @@
     <!-- Submit -->
     <div style="display:flex;gap:12px;justify-content:flex-end;padding-top:10px;border-top:1px solid var(--border);">
       <a href="{% url 'project_list' %}" class="btn btn-ghost">Cancelar</a>
+      <!-- Hidden input to hold extracted items JSON -->
+      {% if is_create %}
+        <input type="hidden" name="items_extraidos_json" id="items_extraidos_json" value="{{ request.POST.items_extraidos_json|default:'' }}">
+      {% endif %}
       <button type="submit" class="btn btn-primary btn-lg">
         <i data-lucide="save" style="width:18px;height:18px;"></i>
         {% if is_create %}Crear Orden de Compra{% else %}Guardar Cambios{% endif %}
@@ -218,4 +261,105 @@
   </form>
 
 </div>
+{% if is_create %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const btn = document.getElementById('btnAutoExtract');
+  const fileInput = document.getElementById('autoExtractFile');
+  const status = document.getElementById('autoExtractStatus');
+
+  if(btn && fileInput) {
+    btn.addEventListener('click', function() {
+      if(!fileInput.files.length) {
+        status.style.display = 'inline-flex';
+        status.style.color = 'var(--rose)';
+        status.innerHTML = '<i data-lucide="alert-circle" style="width:14px;height:14px;"></i> Selecciona un archivo PDF o Excel';
+        if(window.lucide) lucide.createIcons();
+        return;
+      }
+      
+      const file = fileInput.files[0];
+      const formData = new FormData();
+      formData.append('documento', file);
+      
+      status.style.display = 'inline-flex';
+      status.style.color = 'var(--amber)';
+      status.innerHTML = '<i data-lucide="loader" style="width:14px;height:14px;" class="lucide-spin"></i> Analizando documento...';
+      if(window.lucide) lucide.createIcons();
+      
+      fetch('{% url "api_analizar_documento" %}', {
+        method: 'POST',
+        body: formData
+      })
+      .then(response => response.json())
+      .then(data => {
+        if(data.success && data.datos) {
+          status.style.color = 'var(--emerald)';
+          status.innerHTML = '<i data-lucide="check-circle" style="width:14px;height:14px;"></i> ¡Datos extraídos con éxito!';
+          
+          if(data.datos.numero_oc) document.getElementById('id_numero_oc').value = data.datos.numero_oc;
+          if(data.datos.cliente) document.getElementById('id_cliente').value = data.datos.cliente;
+          if(data.datos.proyecto) document.getElementById('id_proyecto').value = data.datos.proyecto;
+          if(data.datos.fecha_oc) {
+             // Intenta parsear a formato YYYY-MM-DD
+             try {
+                let parts = data.datos.fecha_oc.split(/[\/\-]/);
+                if(parts.length === 3) {
+                   let formated = '';
+                   // assuming DD/MM/YYYY or YYYY-MM-DD
+                   if(parts[0].length === 4) {
+                      formated = `${parts[0]}-${parts[1].padStart(2,'0')}-${parts[2].padStart(2,'0')}`;
+                   } else {
+                      formated = `${parts[2]}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}`;
+                   }
+                   document.getElementById('id_fecha_oc').value = formated;
+                }
+             } catch(e) {}
+          }
+          if(data.datos.valor_total) document.getElementById('id_valor_total').value = data.datos.valor_total;
+          
+          if(data.datos.items && data.datos.items.length > 0) {
+             document.getElementById('items_extraidos_json').value = JSON.stringify(data.datos.items);
+             status.innerHTML += ` (${data.datos.items.length} ítems encontrados)`;
+             
+             const previewDiv = document.getElementById('previewItems');
+             const tbody = document.querySelector('#previewItemsTable tbody');
+             tbody.innerHTML = '';
+             data.datos.items.forEach(item => {
+                 const tr = document.createElement('tr');
+                 tr.innerHTML = `
+                    <td style="font-weight:700;color:var(--purple);">${item.linea || ''}</td>
+                    <td>${item.item_code || ''}</td>
+                    <td style="color:var(--amber);">${item.size_code || ''}</td>
+                    <td style="font-weight:600;">${item.descripcion || ''}</td>
+                    <td style="text-align:center;">${item.cantidad || ''}</td>
+                    <td>${item.uom || ''}</td>
+                    <td style="text-align:right;">${item.precio_unitario || ''}</td>
+                    <td style="text-align:right;font-weight:700;color:var(--green);">${item.precio_total || ''}</td>
+                    <td style="text-align:right;">${item.fecha_entrega || ''}</td>
+                 `;
+                 tbody.appendChild(tr);
+             });
+             previewDiv.style.display = 'block';
+          }
+        } else {
+          status.style.color = 'var(--rose)';
+          status.innerHTML = `<i data-lucide="alert-circle" style="width:14px;height:14px;"></i> Error al analizar: ${data.error || 'Desconocido'}`;
+        }
+        if(window.lucide) lucide.createIcons();
+      })
+      .catch(err => {
+        status.style.color = 'var(--rose)';
+        status.innerHTML = '<i data-lucide="alert-circle" style="width:14px;height:14px;"></i> Error de red';
+        if(window.lucide) lucide.createIcons();
+      });
+    });
+  }
+});
+</script>
+<style>
+  .lucide-spin { animation: spin 2s linear infinite; }
+  @keyframes spin { 100% { transform: rotate(360deg); } }
+</style>
+{% endif %}
 {% endblock %}

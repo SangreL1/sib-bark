@@ -1,0 +1,76 @@
+{% extends 'core/base.html' %}
+{% block title %}{{ titulo }} — SIB Bark{% endblock %}
+{% block content %}
+<div class="d-flex align-items-center gap-3 mb-4">
+  <a href="{% url 'entrega_detail' orden_compra.numero_oc entrega.id %}" class="btn btn-outline-secondary btn-sm">
+    <i data-lucide="arrow-left" style="width:16px;height:16px;"></i> Volver al Despacho
+  </a>
+  <h1 class="h3 text-white m-0">{{ titulo }}</h1>
+</div>
+
+<div class="card bg-dark text-white border border-secondary border-opacity-25">
+  <div class="card-header bg-black bg-opacity-25 border-bottom border-secondary border-opacity-25">
+    <h5 class="card-title m-0">Datos de la Guía</h5>
+  </div>
+  <div class="card-body">
+    <form method="POST">
+      {% csrf_token %}
+      <div class="row g-3">
+        <div class="col-md-3">
+          <label class="form-label">N° Guía de Despacho</label>{{ form.numero_guia }}
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Fecha de Emisión</label>{{ form.fecha_emision }}
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Razón Social Receptor</label>{{ form.receptor_nombre }}
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">RUT Receptor</label>{{ form.receptor_rut }}
+        </div>
+        <div class="col-md-5">
+          <label class="form-label">Giro</label>{{ form.receptor_giro }}
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Dirección</label>{{ form.receptor_direccion }}
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Comuna</label>{{ form.receptor_comuna }}
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Contacto / Recibe</label>{{ form.contacto }}
+        </div>
+
+        <div class="col-12"><hr class="border-secondary border-opacity-25"></div>
+        <div class="col-md-4">
+          <label class="form-label">Tipo de Despacho</label>{{ form.tipo_despacho }}
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Tipo de Traslado</label>{{ form.tipo_traslado }}
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Nombre Chofer</label>{{ form.chofer_nombre }}
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">RUT Chofer</label>{{ form.chofer_rut }}
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Patente</label>{{ form.patente }}
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">RUT Transportista</label>{{ form.transportista_rut }}
+        </div>
+        <div class="col-md-9">
+          <label class="form-label">Dirección de Destino</label>{{ form.direccion_destino }}
+        </div>
+
+        <div class="col-12 text-end">
+          <button type="submit" class="btn btn-primary">
+            <i data-lucide="save" style="width:16px;height:16px;"></i> Guardar Guía de Despacho
+          </button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,146 @@
+{% extends 'core/base.html' %}
+{% block title %}Guía N° {{ guia.numero_guia|default:"S/N" }} — SIB Bark{% endblock %}
+{% block content %}
+<div class="d-flex align-items-center gap-2 mb-4 flex-wrap">
+  <a href="{% url 'entrega_detail' orden_compra.numero_oc entrega.id %}" class="btn btn-outline-secondary btn-sm">
+    <i data-lucide="arrow-left" style="width:16px;height:16px;"></i> Volver
+  </a>
+  <h1 class="h3 text-white m-0 me-auto">Guía de Despacho N° {{ guia.numero_guia|default:"—" }}</h1>
+  {% if guia %}
+  <a href="{% url 'guia_pdf' orden_compra.numero_oc entrega.id %}" class="btn btn-outline-info btn-sm">
+    <i data-lucide="file-text" style="width:14px;height:14px;"></i> PDF Guía
+  </a>
+  <a href="{% url 'guia_packing_combinado_pdf' orden_compra.numero_oc entrega.id %}" class="btn btn-success btn-sm">
+    <i data-lucide="layers" style="width:14px;height:14px;"></i> Guía + Packing List (PDF combinado)
+  </a>
+  {% endif %}
+</div>
+
+{% if not guia %}
+<div class="alert alert-warning">
+  Esta entrega no tiene Guía de Despacho creada aún.
+  <a href="{% url 'guia_create' orden_compra.numero_oc entrega.id %}" class="btn btn-warning btn-sm ms-2">Crear Guía</a>
+</div>
+{% else %}
+
+<div class="row g-4">
+  <!-- Datos Receptora / Transporte -->
+  <div class="col-lg-4">
+    <div class="card bg-dark text-white border border-secondary border-opacity-25 mb-3">
+      <div class="card-header bg-black bg-opacity-25 border-bottom border-secondary border-opacity-25">
+        <h6 class="card-title m-0">🏢 Receptor</h6>
+      </div>
+      <div class="card-body small">
+        <dl class="row mb-0">
+          <dt class="col-sm-5 text-muted">Fecha Emisión</dt>
+          <dd class="col-sm-7">{{ guia.fecha_emision|date:"d/m/Y" }}</dd>
+          <dt class="col-sm-5 text-muted">OC</dt>
+          <dd class="col-sm-7">
+            <a href="{% url 'project_detail' orden_compra.numero_oc %}" class="text-warning">{{ orden_compra.numero_oc }}</a>
+          </dd>
+          <dt class="col-sm-5 text-muted">Razón Social</dt>
+          <dd class="col-sm-7">{{ guia.receptor_nombre|default:"—" }}</dd>
+          <dt class="col-sm-5 text-muted">RUT</dt>
+          <dd class="col-sm-7">{{ guia.receptor_rut|default:"—" }}</dd>
+          <dt class="col-sm-5 text-muted">Giro</dt>
+          <dd class="col-sm-7">{{ guia.receptor_giro|default:"—" }}</dd>
+          <dt class="col-sm-5 text-muted">Contacto</dt>
+          <dd class="col-sm-7">{{ guia.contacto|default:"—" }}</dd>
+        </dl>
+      </div>
+    </div>
+    <div class="card bg-dark text-white border border-secondary border-opacity-25 mb-3">
+      <div class="card-header bg-black bg-opacity-25 border-bottom border-secondary border-opacity-25">
+        <h6 class="card-title m-0">🚚 Transporte</h6>
+      </div>
+      <div class="card-body small">
+        <dl class="row mb-0">
+          <dt class="col-sm-5 text-muted">Chofer</dt>
+          <dd class="col-sm-7">{{ guia.chofer_nombre|default:"—" }}</dd>
+          <dt class="col-sm-5 text-muted">Patente</dt>
+          <dd class="col-sm-7">{{ guia.patente|default:"—" }}</dd>
+          <dt class="col-sm-5 text-muted">Destino</dt>
+          <dd class="col-sm-7">{{ guia.direccion_destino|default:"—" }}</dd>
+        </dl>
+      </div>
+    </div>
+    <!-- Totales -->
+    <div class="card bg-dark text-white border border-secondary border-opacity-25">
+      <div class="card-body">
+        <table class="table table-dark table-sm mb-0">
+          <tr><td class="text-muted">Monto Neto</td><td class="text-end font-monospace">${{ guia.monto_neto|floatformat:0 }}</td></tr>
+          <tr><td class="text-muted">IVA (19%)</td><td class="text-end font-monospace">${{ guia.iva|floatformat:0 }}</td></tr>
+          <tr class="table-primary"><td><strong>Monto Total</strong></td><td class="text-end font-monospace"><strong>${{ guia.monto_total|floatformat:0 }}</strong></td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Ítems -->
+  <div class="col-lg-8">
+    <div class="card bg-dark text-white border border-secondary border-opacity-25 mb-4">
+      <div class="card-header bg-black bg-opacity-25 border-bottom border-secondary border-opacity-25">
+        <h6 class="card-title m-0">📦 Detalle de la Guía</h6>
+      </div>
+      <div class="card-body p-0">
+        <table class="table table-dark table-hover align-middle mb-0" style="font-size:0.85rem;">
+          <thead><tr>
+            <th>Descripción</th>
+            <th>Cantidad / Unidad</th>
+            <th class="text-end">Precio Unit.</th>
+            <th class="text-end">Total</th>
+            <th></th>
+          </tr></thead>
+          <tbody>
+            {% for item in items %}
+            <tr>
+              <td>{{ item.descripcion }}</td>
+              <td>{{ item.cantidad_unidad|default:"—" }}</td>
+              <td class="text-end font-monospace">${{ item.precio_unitario|floatformat:0 }}</td>
+              <td class="text-end font-monospace">${{ item.total|floatformat:0 }}</td>
+              <td>
+                <a href="{% url 'guia_item_delete' orden_compra.numero_oc entrega.id item.id %}" class="btn btn-sm text-danger p-1">
+                  <i data-lucide="trash-2" style="width:14px;height:14px;"></i>
+                </a>
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="5" class="text-center text-muted py-3">Sin ítems. Agrega uno abajo.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Formulario agregar ítem -->
+    <div class="card bg-dark text-white border border-secondary border-opacity-25">
+      <div class="card-header bg-black bg-opacity-25 border-bottom border-secondary border-opacity-25">
+        <h6 class="card-title m-0">➕ Agregar Ítem a la Guía</h6>
+      </div>
+      <div class="card-body">
+        <form method="POST">
+          {% csrf_token %}
+          <input type="hidden" name="agregar_item_guia" value="1">
+          <div class="row g-2 align-items-end">
+            <div class="col-md-5">
+              <label class="form-label small">Descripción</label>{{ item_form.descripcion }}
+            </div>
+            <div class="col-md-3">
+              <label class="form-label small">Cantidad / Unidad</label>{{ item_form.cantidad_unidad }}
+            </div>
+            <div class="col-md-3">
+              <label class="form-label small">Precio Unitario ($)</label>{{ item_form.precio_unitario }}
+            </div>
+            <div class="col-md-1">
+              <button type="submit" class="btn btn-primary w-100">
+                <i data-lucide="plus" style="width:14px;height:14px;"></i>
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

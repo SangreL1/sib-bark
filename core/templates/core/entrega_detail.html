@@ -1,0 +1,276 @@
+{% extends 'core/base.html' %}
+{% load static %}
+
+{% block title %}Detalle de Despacho N° {{ entrega.guia_despacho }} - SIB Bark{% endblock %}
+
+{% block content %}
+<div class="row align-items-center mb-4">
+  <div class="col-md-9">
+    <div class="d-flex align-items-center gap-2">
+      <a href="{% url 'project_detail' orden_compra.numero_oc %}" class="btn btn-outline-secondary btn-sm" style="min-height:36px;">
+        <i data-lucide="arrow-left" style="width:16px;height:16px;"></i> Volver al Proyecto
+      </a>
+      <h1 class="h3 m-0 text-white">Detalle de Despacho / Guía {{ entrega.guia_despacho|default:"S/N" }}</h1>
+    </div>
+    <p class="text-muted m-0 mt-1">Órden de Compra: <strong class="text-white">{{ orden_compra.numero_oc }}</strong> | Cliente: <strong class="text-white">{{ orden_compra.cliente }}</strong></p>
+  </div>
+  <div class="col-md-3 text-md-end mt-3 mt-md-0">
+    <span class="badge {% if entrega.estado_facturacion == 'facturado' %}bg-success{% else %}bg-warning text-dark{% endif %} p-2 fs-6">
+      <i data-lucide="receipt" style="width:16px;height:16px;margin-right:4px;"></i> {{ entrega.get_estado_facturacion_display }}
+    </span>
+  </div>
+</div>
+
+<div class="row g-4">
+  <!-- Información del Despacho y Control de Facturación / Packing Lists -->
+  <div class="col-lg-4">
+    <!-- Card Control Estado Facturacion -->
+    <div class="card bg-dark text-white border border-secondary border-opacity-25 mb-4">
+      <div class="card-header bg-black bg-opacity-25 border-bottom border-secondary border-opacity-25">
+        <h5 class="card-title m-0 d-flex align-items-center gap-2">
+          <i data-lucide="shield-check" class="text-success"></i> Control de Facturación
+        </h5>
+      </div>
+      <div class="card-body">
+        <form method="POST" class="d-flex gap-2 align-items-end">
+          {% csrf_token %}
+          <input type="hidden" name="cambiar_facturacion" value="1">
+          <div class="flex-grow-1">
+            <label class="form-label">Estado de Facturación</label>
+            <select name="estado_facturacion" class="form-select bg-black text-white border-secondary border-opacity-50" style="min-height:44px;">
+              {% for k, v in estados_facturacion %}
+                <option value="{{ k }}" {% if entrega.estado_facturacion == k %}selected{% endif %}>{{ v }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <button type="submit" class="btn btn-primary" style="min-height:44px;">
+            Actualizar
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Generación e Histórico de Packing Lists PDF -->
+    <div class="card bg-dark text-white border border-secondary border-opacity-25 mb-4">
+      <div class="card-header bg-black bg-opacity-25 border-bottom border-secondary border-opacity-25">
+        <h5 class="card-title m-0 d-flex align-items-center gap-2">
+          <i data-lucide="printer" class="text-info"></i> Comprobantes Packing List
+        </h5>
+      </div>
+      <div class="card-body">
+        {% if packing_lists %}
+          <p class="text-muted small">Lista de Packing Lists generados bajo esta guía de despacho:</p>
+          <div class="d-flex flex-column gap-2 mb-3">
+              {% for pl in packing_lists %}
+              <div class="p-2 rounded bg-black border border-secondary border-opacity-25 d-flex align-items-center justify-content-between">
+                <div>
+                  <strong class="text-white">PL-N° {{ pl.numero_correlativo|stringformat:"05d" }}</strong>
+                  <span class="d-block text-muted" style="font-size: 0.75rem;">Envío: {{ pl.fecha_envio|date:"d-m-Y" }}</span>
+                </div>
+                <div class="d-flex gap-1">
+                  <a href="{% url 'generate_packing_list_pdf' pl.id %}" class="btn btn-outline-info btn-sm d-inline-flex align-items-center gap-1" style="min-height:36px;" title="Descargar PDF">
+                    <i data-lucide="file-text" style="width:14px;height:14px;"></i> PDF
+                  </a>
+                  <a href="{% url 'export_packing_list_excel' pl.id %}" class="btn btn-outline-success btn-sm d-inline-flex align-items-center gap-1" style="min-height:36px;" title="Descargar Excel">
+                    <i data-lucide="table" style="width:14px;height:14px;"></i> Excel
+                  </a>
+                </div>
+              </div>
+              {% endfor %}
+          </div>
+        {% else %}
+          <div class="alert alert-warning bg-black border-warning border-opacity-25 text-warning small mb-3">
+            No se ha emitido un Packing List correlativo oficial para este despacho.
+          </div>
+        {% endif %}
+
+        <hr class="border-secondary border-opacity-25 my-3">
+
+        <!-- Guía de Despacho Estructurada -->
+        <h6 class="text-white mb-2">📋 Guía de Despacho</h6>
+        {% if entrega.guia_despacho_obj %}
+          <div class="d-flex gap-2 flex-wrap mb-2">
+            <a href="{% url 'guia_detail' orden_compra.numero_oc entrega.id %}" class="btn btn-outline-warning btn-sm">
+              <i data-lucide="eye" style="width:14px;height:14px;"></i> Ver Guía N° {{ entrega.guia_despacho_obj.numero_guia }}
+            </a>
+            <a href="{% url 'guia_pdf' orden_compra.numero_oc entrega.id %}" class="btn btn-outline-info btn-sm">
+              <i data-lucide="file-text" style="width:14px;height:14px;"></i> PDF Guía
+            </a>
+            <a href="{% url 'guia_packing_combinado_pdf' orden_compra.numero_oc entrega.id %}" class="btn btn-success btn-sm">
+              <i data-lucide="layers" style="width:14px;height:14px;"></i> Guía + PL Combinado
+            </a>
+          </div>
+        {% else %}
+          <a href="{% url 'guia_create' orden_compra.numero_oc entrega.id %}" class="btn btn-outline-warning btn-sm mb-2">
+            <i data-lucide="plus-circle" style="width:14px;height:14px;"></i> Crear Guía de Despacho
+          </a>
+        {% endif %}
+
+        <hr class="border-secondary border-opacity-25 my-3">
+        
+        <h6 class="text-white mb-2">Crear Nuevo Packing List Correlativo</h6>
+        <form method="POST" action="{% url 'create_packing_list' orden_compra.numero_oc entrega.id %}">
+          {% csrf_token %}
+          <div class="row g-2">
+            <div class="col-12">
+              <label class="form-label small text-muted">Nombre del Cliente en Reporte</label>
+              <input type="text" name="nombre_cliente" value="{{ orden_compra.cliente }}" class="form-control bg-black text-white border-secondary border-opacity-50 btn-sm">
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label small text-muted">Fecha Orden</label>
+              <input type="date" name="fecha_orden" value="{{ orden_compra.fecha_oc|date:'Y-m-d' }}" class="form-control bg-black text-white border-secondary border-opacity-50 btn-sm">
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label small text-muted">Fecha Envío</label>
+              <input type="date" name="fecha_envio" value="{{ entrega.fecha_entrega|date:'Y-m-d' }}" class="form-control bg-black text-white border-secondary border-opacity-50 btn-sm">
+            </div>
+            <div class="col-12">
+              <label class="form-label small text-muted">Formato de Columnas de Medida</label>
+              <select name="tipo_medida" class="form-select bg-black text-white border-secondary border-opacity-50 btn-sm">
+                <option value="diametro_alto">Ø / Alto</option>
+                <option value="largo_alto">L / H</option>
+              </select>
+            </div>
+            <div class="col-12 text-end mt-3">
+              <button type="submit" class="btn btn-info w-100 d-inline-flex align-items-center justify-content-center gap-1">
+                <i data-lucide="plus-circle" style="width:16px;height:16px;"></i> Emitir Packing List Correlativo
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Items del Despacho y Formularios de Adición -->
+  <div class="col-lg-8">
+    <div class="card bg-dark text-white border border-secondary border-opacity-25 mb-4">
+      <div class="card-header bg-black bg-opacity-25 border-bottom border-secondary border-opacity-25">
+        <h5 class="card-title m-0 d-flex align-items-center gap-2">
+          <i data-lucide="list" class="text-warning"></i> Ítems Cargados en este Despacho
+        </h5>
+      </div>
+      <div class="card-body">
+        <div class="table-responsive">
+          <table class="table table-dark table-hover align-middle border-secondary border-opacity-25" style="font-size:0.85rem;">
+            <thead>
+              <tr class="table-black">
+                <th>Descripción Ítem</th>
+                <th>Bulto / Pallet</th>
+                <th>Soporte</th>
+                <th class="text-center">Ø / Alto</th>
+                <th class="text-center">Estado</th>
+                <th class="text-center">Cant. / Unid.</th>
+                <th>Masa (kg)</th>
+                <th>Acción</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in items %}
+                <tr>
+                  <td>
+                    <strong class="text-white">{{ item.item_oc.descripcion }}</strong>
+                    {% if item.item_oc.item_code %}
+                      <span class="d-block text-muted small">Cód: {{ item.item_oc.item_code }}</span>
+                    {% endif %}
+                  </td>
+                  <td>{{ item.numero_bulto|default:"—" }}</td>
+                  <td>{{ item.modelo_soporte|default:"—" }}</td>
+                  <td class="text-center">{{ item.diametro|default:"—" }} / {{ item.alto_item|default:"—" }}</td>
+                  <td class="text-center">{{ item.estado_item|default:"—" }}</td>
+                  <td class="text-center font-monospace">{{ item.cantidad|floatformat:0 }} ({{ item.unidades|default:"EA" }})</td>
+                  <td class="font-monospace">{{ item.peso_kg|default:"0.00" }} kg</td>
+                  <td>
+                    <a href="{% url 'delete_packing_item' orden_compra.numero_oc item.id %}" class="btn btn-sm btn-clear-danger text-danger p-1" style="min-height:30px;">
+                      <i data-lucide="trash-2" style="width:15px;height:15px;"></i>
+                    </a>
+                  </td>
+                </tr>
+              {% empty %}
+                <tr>
+                  <td colspan="8" class="text-center text-muted py-4">No se han registrado ítems de despacho en esta guía. Use el formulario inferior.</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Formulario para Registrar Nuevo Ítems de Despacho (PackingListItem) -->
+    <div class="card bg-dark text-white border border-secondary border-opacity-25">
+      <div class="card-header bg-black bg-opacity-25 border-bottom border-secondary border-opacity-25">
+        <h5 class="card-title m-0 d-flex align-items-center gap-2">
+          <i data-lucide="plus" class="text-primary"></i> Agregar Ítem al Despacho (Con Registro Calidad)
+        </h5>
+      </div>
+      <div class="card-body">
+        <form method="POST">
+          {% csrf_token %}
+          <input type="hidden" name="agregar_item" value="1">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label">Seleccionar Ítem del Proyecto</label>
+              {{ form.item_oc }}
+            </div>
+            <div class="col-md-3 col-sm-6">
+              <label class="form-label">Cantidad Despachada</label>
+              {{ form.cantidad }}
+            </div>
+            <div class="col-md-3 col-sm-6">
+              <label class="form-label">Pallet / Bulto N°</label>
+              {{ form.numero_bulto }}
+            </div>
+
+            <!-- Nuevos campos para el reporte de Calidad/Packing List -->
+            <div class="col-md-4 col-sm-6">
+              <label class="form-label">Modelo Soporte</label>
+              {{ form.modelo_soporte }}
+            </div>
+            <div class="col-md-4 col-sm-6">
+              <label class="form-label">Diámetro / Ø</label>
+              {{ form.diametro }}
+            </div>
+            <div class="col-md-4 col-sm-6">
+              <label class="form-label">Alto Ítem</label>
+              {{ form.alto_item }}
+            </div>
+            <div class="col-md-3 col-sm-6">
+              <label class="form-label">Estado de la Pieza</label>
+              {{ form.estado_item }}
+            </div>
+            <div class="col-md-3 col-sm-6">
+              <label class="form-label">Unidades (etiqueta)</label>
+              {{ form.unidades }}
+            </div>
+
+            <!-- Dimensiones Físicas y Peso -->
+            <div class="col-md-2 col-sm-4">
+              <label class="form-label">Largo (mt)</label>
+              {{ form.largo_mt }}
+            </div>
+            <div class="col-md-2 col-sm-4">
+              <label class="form-label">Ancho (mt)</label>
+              {{ form.ancho_mt }}
+            </div>
+            <div class="col-md-2 col-sm-4">
+              <label class="form-label">Alto (mt)</label>
+              {{ form.alto_mt }}
+            </div>
+            <div class="col-12">
+              <label class="form-label">Peso del Bulto (Kg)</label>
+              {{ form.peso_kg }}
+            </div>
+
+            <div class="col-12 text-end mt-4">
+              <button type="submit" class="btn btn-primary d-inline-flex align-items-center gap-1">
+                <i data-lucide="check-circle" style="width:18px;height:18px;"></i> Guardar Ítem de Despacho
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

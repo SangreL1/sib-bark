@@ -211,7 +211,7 @@ class BarkModelsTestCase(TestCase):
     def test_add_and_delete_cost_material_views(self):
         """Verify detailed materials creation views."""
         from django.contrib.auth import get_user_model
-        from .models import CostoMaterial
+        from .models import MateriaPrima
         
         User = get_user_model()
         user = User.objects.create_user(username='materialtester', password='password')
@@ -223,15 +223,14 @@ class BarkModelsTestCase(TestCase):
             'producto': 'Tornillos Anclaje 3/4',
             'cantidad': '10',
             'valor_unitario': '1500',
-            'proveedor': 'Ferretería Industrial',
-            'fecha_compra': '2026-07-06'
+            'total': '15000'
         }
         
         response = self.client.post(url_add, data)
         detail_url = reverse('project_detail', kwargs={'numero_oc': self.oc.numero_oc})
         self.assertRedirects(response, detail_url)
         
-        mat = CostoMaterial.objects.filter(producto='Tornillos Anclaje 3/4').first()
+        mat = MateriaPrima.objects.filter(producto='Tornillos Anclaje 3/4').first()
         self.assertIsNotNone(mat)
         self.assertEqual(mat.total, Decimal('15000'))
         
@@ -239,13 +238,18 @@ class BarkModelsTestCase(TestCase):
         url_del = reverse('delete_cost_material', kwargs={'numero_oc': self.oc.numero_oc, 'item_id': mat.id})
         res_del = self.client.get(url_del)
         self.assertRedirects(res_del, detail_url)
-        self.assertEqual(CostoMaterial.objects.filter(id=mat.id).count(), 0)
+        self.assertEqual(MateriaPrima.objects.filter(id=mat.id).count(), 0)
 
     def test_add_and_delete_cost_mano_obra_views(self):
         """Verify detailed labor creation views."""
         from django.contrib.auth import get_user_model
-        from .models import CostoManoObra
+        from .models import ManoDeObra, Cargo
         
+        # Obtener o crear cargo de prueba, forzando precio_hora a 6000
+        cargo, _ = Cargo.objects.get_or_create(nombre='Pintor')
+        cargo.precio_hora = 6000
+        cargo.save()
+
         User = get_user_model()
         user = User.objects.create_user(username='labortester', password='password')
         self.client.force_login(user)
@@ -253,9 +257,9 @@ class BarkModelsTestCase(TestCase):
         # 1. Test ADD Labor
         url_add = reverse('add_cost_mano_obra', kwargs={'numero_oc': self.oc.numero_oc})
         data = {
-            'cargo': 'Pintor',
-            'precio_hora': '6000',
-            'horas_normales': '30',
+            'cargo': cargo.id,
+            'dias': '2',
+            'horas': '15',
             'horas_extra': '2',
             'cantidad_trabajadores': '3'
         }
@@ -264,15 +268,16 @@ class BarkModelsTestCase(TestCase):
         detail_url = reverse('project_detail', kwargs={'numero_oc': self.oc.numero_oc})
         self.assertRedirects(response, detail_url)
         
-        mo = CostoManoObra.objects.filter(cargo='Pintor').first()
+        mo = ManoDeObra.objects.filter(cargo=cargo).first()
         self.assertIsNotNone(mo)
-        self.assertEqual(mo.nombre_cargo, 'Pintor')
-        # (30h normal + 2h extra) * 6000 * 3 = 576000
-        self.assertEqual(mo.total, Decimal('576000'))
+        self.assertEqual(mo.cargo.nombre, 'Pintor')
+        # (2 días * 15 horas * 6000) * 3 trabajadores = 540000 base
+        # 2 horas extra * 6000 = 12000 extra. Total = 552000
+        self.assertEqual(mo.total, Decimal('552000'))
 
         # 2. Test DELETE Labor
         url_del = reverse('delete_cost_mano_obra', kwargs={'numero_oc': self.oc.numero_oc, 'item_id': mo.id})
         res_del = self.client.get(url_del)
         self.assertRedirects(res_del, detail_url)
-        self.assertEqual(CostoManoObra.objects.filter(id=mo.id).count(), 0)
+        self.assertEqual(ManoDeObra.objects.filter(id=mo.id).count(), 0)
 

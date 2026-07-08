@@ -1,21 +1,27 @@
 from django.contrib import admin
-from .models import OrdenCompra, FMR, Entrega, Costo, Trazabilidad, ItemOC, PackingListItem, Factura, CostoMaterial, CostoManoObra
+from .models import (
+    OrdenCompra, FMR, Entrega, Costo, Trazabilidad, ItemOC, PackingListItem,
+    Factura, CostoMaterial, CostoManoObra, Cargo, ManoDeObra, MateriaPrima, PackingList,
+    Cotizacion, ItemCotizacion, GuiaDespacho, ItemGuia,
+)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Inlines
 # ─────────────────────────────────────────────────────────────────────────────
 
-class CostoMaterialInline(admin.TabularInline):
-    model = CostoMaterial
+class MateriaPrimaInline(admin.TabularInline):
+    model = MateriaPrima
     extra = 0
-    fields = ('producto', 'cantidad', 'valor_unitario', 'proveedor', 'fecha_compra')
+    fields = ('producto', 'cantidad', 'valor_unitario', 'total')
+    readonly_fields = ('total',)
 
 
-class CostoManoObraInline(admin.TabularInline):
-    model = CostoManoObra
+class ManoDeObraInline(admin.TabularInline):
+    model = ManoDeObra
     extra = 0
-    fields = ('cargo', 'cargo_otro', 'precio_hora', 'horas_normales', 'horas_extra', 'cantidad_trabajadores')
+    fields = ('cargo', 'dias', 'horas', 'cantidad_trabajadores', 'horas_extra', 'total')
+    readonly_fields = ('total',)
 
 
 class FacturaInline(admin.TabularInline):
@@ -27,14 +33,15 @@ class FacturaInline(admin.TabularInline):
 class EntregaInline(admin.TabularInline):
     model = Entrega
     extra = 0
-    fields = ('fecha_entrega', 'guia_despacho', 'estado', 'cantidad_entregada')
+    fields = ('fecha_entrega', 'guia_despacho', 'estado', 'estado_facturacion', 'cantidad_entregada')
     show_change_link = True
 
 
 class ItemOCInline(admin.TabularInline):
     model = ItemOC
     extra = 0
-    fields = ('linea', 'descripcion', 'cantidad', 'cantidad_entregada', 'precio_unitario')
+    fields = ('linea', 'item_code', 'size_code', 'descripcion', 'cantidad', 'uom', 'precio_unitario', 'precio_total', 'peso', 'cantidad_entregada')
+    readonly_fields = ('precio_total',)
 
 
 class CostoInline(admin.TabularInline):
@@ -61,7 +68,7 @@ class OrdenCompraAdmin(admin.ModelAdmin):
     search_fields = ('numero_oc', 'cliente', 'proyecto', 'descripcion',
                      'facturas__numero_factura', 'fmrs__fmr_code')
     ordering      = ('-fecha_oc',)
-    inlines       = [ItemOCInline, EntregaInline, FacturaInline, CostoInline, CostoMaterialInline, CostoManoObraInline]
+    inlines       = [ItemOCInline, EntregaInline, FacturaInline, CostoInline, MateriaPrimaInline, ManoDeObraInline]
 
     fieldsets = (
         ('Identificación', {
@@ -139,5 +146,54 @@ class TrazabilidadAdmin(admin.ModelAdmin):
 
 @admin.register(ItemOC)
 class ItemOCAdmin(admin.ModelAdmin):
-    list_display  = ('linea', 'descripcion', 'cantidad', 'cantidad_entregada', 'orden_compra')
-    search_fields = ('descripcion', 'codigo', 'orden_compra__numero_oc')
+    list_display  = ('linea', 'item_code', 'size_code', 'descripcion', 'cantidad', 'cantidad_entregada', 'orden_compra')
+    search_fields = ('descripcion', 'codigo', 'item_code', 'size_code', 'orden_compra__numero_oc')
+
+
+@admin.register(Cargo)
+class CargoAdmin(admin.ModelAdmin):
+    list_display  = ('nombre', 'precio_hora')
+    search_fields = ('nombre',)
+
+
+@admin.register(PackingList)
+class PackingListAdmin(admin.ModelAdmin):
+    list_display  = ('numero_correlativo', 'orden_compra', 'fecha_orden', 'fecha_envio', 'nombre_cliente', 'tipo_medida')
+    search_fields = ('numero_correlativo', 'orden_compra__numero_oc', 'nombre_cliente')
+    list_filter   = ('fecha_orden', 'tipo_medida')
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Cotización
+# ─────────────────────────────────────────────────────────────────────────────
+
+class ItemCotizacionInline(admin.TabularInline):
+    model = ItemCotizacion
+    extra = 0
+    fields = ('descripcion', 'valor_kg', 'cantidad', 'kg_por_unidad')
+
+
+@admin.register(Cotizacion)
+class CotizacionAdmin(admin.ModelAdmin):
+    list_display  = ('numero_cotizacion', 'fecha', 'valido_hasta', 'razon_social', 'cliente_id', 'orden_compra')
+    search_fields = ('numero_cotizacion', 'razon_social', 'cliente_id', 'orden_compra__numero_oc')
+    list_filter   = ('fecha',)
+    inlines       = [ItemCotizacionInline]
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Guía de Despacho
+# ─────────────────────────────────────────────────────────────────────────────
+
+class ItemGuiaInline(admin.TabularInline):
+    model = ItemGuia
+    extra = 0
+    fields = ('descripcion', 'cantidad_unidad', 'precio_unitario')
+
+
+@admin.register(GuiaDespacho)
+class GuiaDespachoAdmin(admin.ModelAdmin):
+    list_display  = ('numero_guia', 'entrega', 'fecha_emision', 'receptor_nombre', 'receptor_rut')
+    search_fields = ('numero_guia', 'receptor_nombre', 'entrega__orden_compra__numero_oc')
+    list_filter   = ('fecha_emision',)
+    inlines       = [ItemGuiaInline]

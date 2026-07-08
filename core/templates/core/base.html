@@ -152,6 +152,11 @@
           </a>
         </li>
         <li class="nav-item">
+          <a href="{% url 'despachos_list' %}" class="nav-link {% if request.resolver_match.url_name == 'despachos_list' %}active{% endif %}">
+            <i data-lucide="truck" style="width:15px;height:15px;"></i> Despachos
+          </a>
+        </li>
+        <li class="nav-item">
           <a href="{% url 'dashboard' %}" class="nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
             <i data-lucide="bar-chart-2" style="width:15px;height:15px;"></i> KPIs
           </a>
@@ -159,11 +164,6 @@
         <li class="nav-item">
           <a href="{% url 'cost_center_overview' %}" class="nav-link {% if request.resolver_match.url_name == 'cost_center_overview' %}active{% endif %}">
             <i data-lucide="receipt" style="width:15px;height:15px;"></i> Costos
-          </a>
-        </li>
-        <li class="nav-item">
-          <a href="{% url 'import_data' %}" class="nav-link {% if request.resolver_match.url_name == 'import_data' %}active{% endif %}">
-            <i data-lucide="upload-cloud" style="width:15px;height:15px;"></i> Importar
           </a>
         </li>
       </ul>

@@ -1,0 +1,61 @@
+{% extends 'core/base.html' %}
+{% block title %}{{ titulo }} — SIB Bark{% endblock %}
+{% block content %}
+<div class="d-flex align-items-center gap-3 mb-4">
+  <a href="{% url 'cotizacion_list' %}" class="btn btn-outline-secondary btn-sm">
+    <i data-lucide="arrow-left" style="width:16px;height:16px;"></i> Volver
+  </a>
+  <h1 class="h3 text-white m-0">{{ titulo }}</h1>
+</div>
+
+<div class="card bg-dark text-white border border-secondary border-opacity-25">
+  <div class="card-body">
+    <form method="POST">
+      {% csrf_token %}
+      <div class="row g-3">
+        <div class="col-md-3">
+          <label class="form-label">Fecha</label>{{ form.fecha }}
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Válido hasta</label>{{ form.valido_hasta }}
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Cliente ID</label>{{ form.cliente_id }}
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Orden de Compra (opcional)</label>{{ form.orden_compra }}
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Nombre Contacto</label>{{ form.contacto_nombre }}
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Cargo Contacto</label>{{ form.contacto_cargo }}
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Razón Social</label>{{ form.razon_social }}
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Giro</label>{{ form.giro }}
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">RUT</label>{{ form.rut_receptor }}
+        </div>
+        <div class="col-md-8">
+          <label class="form-label">Dirección</label>{{ form.direccion_receptor }}
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Ciudad</label>{{ form.ciudad_receptor }}
+        </div>
+        <div class="col-12">
+          <label class="form-label">Observaciones / Notas</label>{{ form.observaciones }}
+        </div>
+        <div class="col-12 text-end">
+          <button type="submit" class="btn btn-primary">
+            <i data-lucide="save" style="width:16px;height:16px;"></i> Guardar Cotización
+          </button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
