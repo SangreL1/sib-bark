@@ -36,6 +36,7 @@ class OrdenCompra(models.Model):
     fecha_ultima_entrega = models.DateField(null=True, blank=True, verbose_name="Fecha Última Entrega")
     dias_restantes = models.IntegerField(null=True, blank=True, verbose_name="Días Restantes")
     prioridad = models.CharField(max_length=100, choices=PRIORIDADES, null=True, blank=True, verbose_name="Prioridad")
+    peso_total_manual = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True, verbose_name="Peso Total OC (Respaldo/Opcional)")
 
     # Summaries
     guia_despacho_resumen = models.CharField(max_length=255, null=True, blank=True, verbose_name="Guía de Despacho")
@@ -159,6 +160,11 @@ class OrdenCompra(models.Model):
 
     @property
     def peso_total_kg(self):
+        cotizacion = self.cotizaciones.first()
+        if cotizacion:
+            return sum(item.kg_total for item in cotizacion.items.all())
+        if self.peso_total_manual:
+            return self.peso_total_manual
         return self.items.aggregate(total=models.Sum('peso'))['total'] or Decimal('0.00')
 
     @property
@@ -207,6 +213,20 @@ class OrdenCompra(models.Model):
                 completas = entregas.filter(estado__icontains='COMPLETA').count()
                 self.porcentaje_entregado = min(round((completas / total) * 100, 2), 100)
         self.save(update_fields=['porcentaje_entregado'])
+
+    def save(self, *args, **kwargs):
+        # Auto-calculate fecha_compromiso default based on business days
+        if self.fecha_oc and self.tiempo_fabricacion and not self.fecha_compromiso:
+            import datetime
+            days_to_add = self.tiempo_fabricacion
+            current_date = self.fecha_oc
+            while days_to_add > 0:
+                current_date += datetime.timedelta(days=1)
+                # 5 = Saturday, 6 = Sunday
+                if current_date.weekday() < 5:
+                    days_to_add -= 1
+            self.fecha_compromiso = current_date
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.numero_oc} — {self.cliente}"
@@ -311,7 +331,7 @@ class Costo(models.Model):
 
 class Trazabilidad(models.Model):
     orden_compra = models.ForeignKey(
-        OrdenCompra, on_delete=models.CASCADE,
+        OrdenCompra, on_delete=models.SET_NULL, null=True, blank=True,
         related_name='trazabilidades', verbose_name="Orden de Compra"
     )
     usuario = models.ForeignKey(

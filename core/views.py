@@ -442,6 +442,35 @@ def oc_edit(request, numero_oc):
     })
 
 
+@login_required
+def oc_delete(request, numero_oc):
+    project = get_object_or_404(OrdenCompra, numero_oc=numero_oc)
+    if request.method == 'POST':
+        numero = project.numero_oc
+        registrar_trazabilidad(
+            None, 
+            "Eliminación de OC", 
+            f"Se eliminó permanentemente la Orden de Compra {numero} y todos sus registros asociados.", 
+            request.user
+        )
+        project.delete()
+        messages.success(request, f'Orden de Compra {numero} eliminada exitosamente.')
+        return redirect('project_list')
+
+    # Para GET request, mostramos la página de confirmación
+    entregas_count = project.entregas.count()
+    facturas_count = project.facturas.count()
+    packing_lists_count = project.packing_lists.count()
+
+    context = {
+        'project': project,
+        'entregas_count': entregas_count,
+        'facturas_count': facturas_count,
+        'packing_lists_count': packing_lists_count,
+    }
+    return render(request, 'core/oc_confirm_delete.html', context)
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # PROJECT DETAIL
 # ──────────────────────────────────────────────────────────────────────────────

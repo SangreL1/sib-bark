@@ -18,6 +18,7 @@ urlpatterns = [
     # OC CRUD
     path('proyectos/nuevo/', views.oc_create, name='oc_create'),
     path('proyecto/<path:numero_oc>/editar/', views.oc_edit, name='oc_edit'),
+    path('proyecto/<path:numero_oc>/eliminar/', views.oc_delete, name='oc_delete'),
     path('proyecto/<path:numero_oc>/agregar-costo/', views.add_cost, name='add_cost'),
     
     # Costos Detallados (Materiales y Mano de Obra)

@@ -137,6 +137,11 @@
           <label class="form-label">{{ form.guia_despacho_resumen.label }}</label>
           {{ form.guia_despacho_resumen }}
         </div>
+        <div class="form-group">
+          <label class="form-label">{{ form.peso_total_manual.label }}</label>
+          {{ form.peso_total_manual }}
+          <small style="color:var(--txt-2);font-size:10px;">Solo usar si no hay cotización vinculada</small>
+        </div>
       </div>
       <div class="form-group">
         <label class="form-label">{{ form.observaciones.label }}</label>
@@ -231,7 +236,7 @@
         <!-- FMR -->
         <div style="background:rgba(255,255,255,.01);border:1px solid var(--border);border-radius:8px;padding:16px;">
           <h4 style="font-size:12px;font-weight:700;color:var(--txt);margin-bottom:12px;display:flex;align-items:center;gap:6px;">
-            📁 Registro/FMR Adjunto
+            📁 FMR
           </h4>
           <div class="form-group">
             <label class="form-label" style="font-size:10px;">Link Drive/Nube</label>
@@ -267,6 +272,41 @@ document.addEventListener('DOMContentLoaded', function() {
   const btn = document.getElementById('btnAutoExtract');
   const fileInput = document.getElementById('autoExtractFile');
   const status = document.getElementById('autoExtractStatus');
+
+  // Lógica para Días Hábiles y Fecha Compromiso
+  const fechaOcInput = document.getElementById('id_fecha_oc');
+  const tiempoFabInput = document.getElementById('id_tiempo_fabricacion');
+  const fechaCompromisoInput = document.getElementById('id_fecha_compromiso');
+
+  function calcularFechaCompromiso() {
+    if (!fechaOcInput.value || !tiempoFabInput.value) return;
+    const parts = fechaOcInput.value.split('-'); // asume YYYY-MM-DD
+    if (parts.length !== 3) return;
+    
+    let daysToAdd = parseInt(tiempoFabInput.value, 10);
+    if (isNaN(daysToAdd) || daysToAdd <= 0) return;
+
+    // Crea la fecha sumando un componente a la vez para evitar zonas horarias problemáticas
+    let date = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+    
+    while (daysToAdd > 0) {
+      date.setDate(date.getDate() + 1);
+      // 0 = Domingo, 6 = Sábado
+      if (date.getDay() !== 0 && date.getDay() !== 6) {
+        daysToAdd--;
+      }
+    }
+    
+    // Formatear de vuelta a YYYY-MM-DD
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    fechaCompromisoInput.value = `${y}-${m}-${d}`;
+  }
+
+  if (fechaOcInput) fechaOcInput.addEventListener('change', calcularFechaCompromiso);
+  if (tiempoFabInput) tiempoFabInput.addEventListener('input', calcularFechaCompromiso);
+
 
   if(btn && fileInput) {
     btn.addEventListener('click', function() {

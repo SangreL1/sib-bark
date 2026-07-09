@@ -1,0 +1,49 @@
+{% extends 'core/base.html' %}
+{% block title %}Eliminar Orden de Compra — SIB Bark{% endblock %}
+
+{% block content %}
+<div class="fade-up" style="max-width:600px;margin:40px auto;">
+  <div class="card-flat">
+    <div style="text-align:center; padding: 20px;">
+      <i data-lucide="alert-triangle" style="width:48px;height:48px;color:var(--rose);margin-bottom:16px;"></i>
+      <h2 style="color:var(--txt);margin-bottom:8px;">¿Confirmas la eliminación?</h2>
+      <p style="color:var(--txt-2);margin-bottom:20px;">
+        Estás a punto de eliminar la Orden de Compra <strong>{{ project.numero_oc }}</strong> ({{ project.cliente }}).
+      </p>
+
+      <div style="background:rgba(255,255,255,.02); border:1px solid var(--border); border-radius:8px; padding:16px; text-align:left; margin-bottom:20px;">
+        <h4 style="font-size:13px;font-weight:700;color:var(--txt);margin-bottom:12px;">Esta OC tiene los siguientes registros asociados:</h4>
+        <ul style="font-size:13px;color:var(--txt-2);padding-left:20px;margin-bottom:0;">
+          <li><strong>{{ entregas_count }}</strong> Entregas/Despachos</li>
+          <li><strong>{{ facturas_count }}</strong> Facturas</li>
+          <li><strong>{{ packing_lists_count }}</strong> Packing Lists</li>
+        </ul>
+        <p style="font-size:13px;color:var(--rose);margin-top:12px;font-weight:600;">
+          Al eliminarla, también se eliminarán todos estos registros en cascada.
+        </p>
+      </div>
+
+      {% if facturas_count > 0 %}
+      <div style="background:rgba(225,29,72,.1); border:1px solid var(--rose); border-radius:8px; padding:16px; margin-bottom:24px; text-align:left;">
+        <h4 style="font-size:14px;font-weight:700;color:var(--rose);margin-bottom:8px;display:flex;align-items:center;gap:6px;">
+          <i data-lucide="alert-circle" style="width:16px;height:16px;"></i> ¡ADVERTENCIA CRÍTICA!
+        </h4>
+        <p style="font-size:13px;color:var(--rose);margin-bottom:0;opacity:0.9;">
+          Esta OC ya tiene facturas registradas. Eliminar una OC facturada puede descuadrar registros contables. Asegúrate de estar absolutamente seguro antes de continuar.
+        </p>
+      </div>
+      {% endif %}
+
+      <form method="POST">
+        {% csrf_token %}
+        <div style="display:flex;gap:12px;justify-content:center;">
+          <a href="{% url 'project_detail' project.numero_oc %}" class="btn btn-ghost btn-lg">Cancelar</a>
+          <button type="submit" class="btn btn-primary btn-lg" style="background:var(--rose);color:white;border:none;">
+            Sí, eliminar permanentemente
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

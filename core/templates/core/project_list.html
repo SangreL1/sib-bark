@@ -162,6 +162,9 @@
                 <a href="{% url 'oc_edit' oc.numero_oc %}" class="btn btn-ghost btn-sm" title="Editar" style="padding:0 8px; min-height: 32px;">
                   <i data-lucide="pencil" style="width:14px;height:14px;"></i>
                 </a>
+                <a href="{% url 'oc_delete' oc.numero_oc %}" class="btn btn-ghost btn-sm" title="Eliminar" style="padding:0 8px; min-height: 32px; color:var(--rose);">
+                  <i data-lucide="trash-2" style="width:14px;height:14px;"></i>
+                </a>
               </div>
             </td>
           </tr>

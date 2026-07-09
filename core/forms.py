@@ -12,7 +12,7 @@ class OrdenCompraForm(forms.ModelForm):
         fields = [
             'numero_oc', 'cliente', 'proyecto', 'descripcion',
             'fecha_oc', 'fecha_compromiso', 'tiempo_fabricacion',
-            'valor_total', 'estado', 'prioridad',
+            'valor_total', 'estado', 'prioridad', 'peso_total_manual',
             'guia_despacho_resumen', 'factura_resumen', 'fecha_factura',
             'observaciones',
             'oc_link', 'oc_file',
@@ -36,6 +36,7 @@ class OrdenCompraForm(forms.ModelForm):
             'guia_despacho_resumen': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'N° de guías emitidas'}),
             'factura_resumen': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'N° de factura'}),
             'fecha_factura': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+            'peso_total_manual': forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'Kg total (Opcional/Legacy)', 'step': '0.01'}),
             'observaciones': forms.Textarea(attrs={'class': 'form-control', 'rows': 2, 'placeholder': 'Notas adicionales'}),
             
             # URLs
@@ -125,9 +126,8 @@ class CostoForm(forms.ModelForm):
 class ItemOCForm(forms.ModelForm):
     class Meta:
         model = ItemOC
-        # Solo los 4 campos que pidió el cliente. Los demás (linea, codigo, etc.)
-        # quedan en el modelo pero no aparecen en el formulario visible.
-        fields = ['descripcion', 'cantidad', 'size_code', 'peso']
+        # Solo los 3 campos. El peso se maneja desde Cotizacion o nivel OC.
+        fields = ['descripcion', 'cantidad', 'size_code']
         widgets = {
             'descripcion':  forms.TextInput(attrs={
                 'class': 'form-control',
@@ -142,17 +142,11 @@ class ItemOCForm(forms.ModelForm):
                 'class': 'form-control',
                 'placeholder': 'Ej. 6 IN, 200x35.9, 2" SCH40'
             }),
-            'peso': forms.NumberInput(attrs={
-                'class': 'form-control',
-                'placeholder': 'Peso total en kg',
-                'step': '0.01'
-            }),
         }
         labels = {
             'descripcion': 'Marca (Nombre de la Pieza)',
             'cantidad':    'Cantidad',
             'size_code':   'Medidas',
-            'peso':        'Peso (kg)',
         }
 
 

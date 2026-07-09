@@ -17,6 +17,9 @@
       <a href="{% url 'oc_edit' project.numero_oc %}" class="btn btn-ghost btn-sm" style="min-height:36px;">
         <i data-lucide="pencil" style="width:14px;height:14px;"></i> Editar OC
       </a>
+      <a href="{% url 'oc_delete' project.numero_oc %}" class="btn btn-ghost btn-sm" style="min-height:36px; color: var(--rose);">
+        <i data-lucide="trash-2" style="width:14px;height:14px;"></i> Eliminar
+      </a>
     </div>
   </div>
 
