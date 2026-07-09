@@ -947,6 +947,7 @@
                         <th style="text-align:right;">Cant.</th>
                         <th style="text-align:right;">Entregado</th>
                         <th style="text-align:right;">Subtotal</th>
+                        <th></th>
                      </tr>
                   </thead>
                   <tbody>
@@ -963,6 +964,11 @@
                         <td style="text-align:right;font-weight:700;">{{ item.cantidad }}</td>
                         <td style="text-align:right;color:var(--green);font-weight:600;">{{ item.cantidad_entregada }}</td>
                         <td style="text-align:right;font-weight:700;color:var(--green);">${{ item.valor_total|floatformat:0 }}</td>
+                        <td style="text-align:center;">
+                          <button type="button" class="btn btn-ghost btn-sm" onclick="editItem('{{ item.id }}', '{{ item.descripcion|escapejs }}', '{{ item.size_code|escapejs }}', '{{ item.cantidad }}')" style="padding:2px 4px;color:var(--blue);" title="Editar Ítem">
+                            <i data-lucide="pencil" style="width:12px;height:12px;"></i>
+                          </button>
+                        </td>
                      </tr>
                      {% endfor %}
                   </tbody>
@@ -980,7 +986,7 @@
              <h4 style="font-size:12px;font-weight:700;color:var(--txt-2);margin-bottom:12px;text-transform:uppercase;letter-spacing:.05em;display:flex;align-items:center;gap:6px;">
                <i data-lucide="plus-circle" style="width:14px;height:14px;color:var(--purple);"></i> Registrar Ítem / Pieza BOM
              </h4>
-             <form action="{% url 'add_item' project.numero_oc %}" method="POST">
+             <form id="bomItemForm" action="{% url 'add_item' project.numero_oc %}" method="POST">
                 {% csrf_token %}
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
                    <div class="form-group" style="margin-bottom:0;">
@@ -992,20 +998,50 @@
                       {{ item_form.size_code }}
                    </div>
                 </div>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+                <div style="display:grid;grid-template-columns:1fr;gap:10px;margin-bottom:12px;">
                    <div class="form-group" style="margin-bottom:0;">
                       <label class="form-label" style="font-size:10px;text-transform:uppercase;letter-spacing:.04em;">Cantidad</label>
                       {{ item_form.cantidad }}
                    </div>
-                   <div class="form-group" style="margin-bottom:0;">
-                      <label class="form-label" style="font-size:10px;text-transform:uppercase;letter-spacing:.04em;">Peso (kg)</label>
-                      {{ item_form.peso }}
-                   </div>
                 </div>
-                <button type="submit" class="btn btn-primary btn-sm" style="width:100%;">
-                   <i data-lucide="plus" style="width:13px;height:13px;"></i> Agregar Ítem
-                </button>
+                <div style="display:flex; gap:10px;">
+                   <button type="submit" id="btnSubmitBom" class="btn btn-primary btn-sm" style="flex:1;">
+                      <i data-lucide="check" style="width:13px;height:13px;"></i> <span id="textSubmitBom">Agregar Ítem</span>
+                   </button>
+                   <button type="button" id="btnCancelEdit" class="btn btn-ghost btn-sm" style="display:none;" onclick="cancelEditBom()">
+                      Cancelar edición
+                   </button>
+                </div>
              </form>
+             <script>
+               function editItem(itemId, desc, size, cant) {
+                 const form = document.getElementById('bomItemForm');
+                 // Cambiamos la URL a editar
+                 form.action = "{% url 'add_item' project.numero_oc %}".replace('agregar-item', 'editar-item/' + itemId);
+                 
+                 document.getElementById('id_descripcion').value = desc;
+                 document.getElementById('id_size_code').value = size;
+                 document.getElementById('id_cantidad').value = cant.replace(',', '.'); 
+                 
+                 document.getElementById('textSubmitBom').innerText = "Guardar Cambios";
+                 document.getElementById('btnSubmitBom').classList.remove('btn-primary');
+                 document.getElementById('btnSubmitBom').classList.add('btn-warning');
+                 document.getElementById('btnCancelEdit').style.display = 'block';
+                 
+                 form.scrollIntoView({ behavior: 'smooth', block: 'center' });
+               }
+
+               function cancelEditBom() {
+                 const form = document.getElementById('bomItemForm');
+                 form.action = "{% url 'add_item' project.numero_oc %}";
+                 form.reset();
+                 
+                 document.getElementById('textSubmitBom').innerText = "Agregar Ítem";
+                 document.getElementById('btnSubmitBom').classList.remove('btn-warning');
+                 document.getElementById('btnSubmitBom').classList.add('btn-primary');
+                 document.getElementById('btnCancelEdit').style.display = 'none';
+               }
+             </script>
           </div>
       </div>
 

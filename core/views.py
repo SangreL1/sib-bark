@@ -652,6 +652,45 @@ def add_item(request, numero_oc):
         else:
             messages.error(request, f'Error al agregar item: {form.errors}')
     return redirect('project_detail', numero_oc=numero_oc)
+
+
+@login_required
+def edit_item(request, numero_oc, item_id):
+    if request.method == 'POST':
+        project = get_object_or_404(OrdenCompra, numero_oc=numero_oc)
+        item = get_object_or_404(ItemOC, id=item_id, orden_compra=project)
+        
+        form = ItemOCForm(request.POST, instance=item)
+        if form.is_valid():
+            nueva_cantidad = form.cleaned_data['cantidad']
+            if nueva_cantidad < item.cantidad_entregada:
+                messages.error(request, f'No puedes reducir la cantidad por debajo de lo ya entregado ({item.cantidad_entregada} unidades).')
+                return redirect('project_detail', numero_oc=numero_oc)
+            
+            cambios = []
+            if 'descripcion' in form.changed_data:
+                cambios.append(f"Marca a '{form.cleaned_data['descripcion']}'")
+            if 'size_code' in form.changed_data:
+                cambios.append(f"Medidas a '{form.cleaned_data['size_code']}'")
+            if 'cantidad' in form.changed_data:
+                cambios.append(f"Cantidad a {form.cleaned_data['cantidad']}")
+                
+            item = form.save()
+            project.recalcular_porcentaje()
+            
+            str_cambios = ", ".join(cambios) if cambios else "Sin cambios"
+            registrar_trazabilidad(
+                project,
+                "Edición de Ítem BOM",
+                f"Se modificó el ítem {item.linea} ({item.descripcion}). Cambios: {str_cambios}.",
+                request.user
+            )
+            messages.success(request, f'Ítem {item.linea} actualizado exitosamente.')
+        else:
+            messages.error(request, f'Error al actualizar el ítem: {form.errors}')
+    return redirect('project_detail', numero_oc=numero_oc)
+
+
 @login_required
 def cost_center_overview(request):
     projects_with_costs = OrdenCompra.objects.annotate(

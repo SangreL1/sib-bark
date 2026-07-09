@@ -30,6 +30,7 @@ urlpatterns = [
     path('proyecto/<path:numero_oc>/agregar-entrega/', views.add_entrega, name='add_entrega'),
     path('proyecto/<path:numero_oc>/agregar-fmr/', views.add_fmr, name='add_fmr'),
     path('proyecto/<path:numero_oc>/agregar-item/', views.add_item, name='add_item'),
+    path('proyecto/<path:numero_oc>/editar-item/<int:item_id>/', views.edit_item, name='edit_item'),
     path('proyecto/<path:numero_oc>/entrega/<int:entrega_id>/agregar-packing-item/', views.add_packing_item, name='add_packing_item'),
     path('proyecto/<path:numero_oc>/packing-item/<int:item_id>/eliminar/', views.delete_packing_item, name='delete_packing_item'),
 
