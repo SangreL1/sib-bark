@@ -1,0 +1,38 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Dashboard RRHH — SIB Bark{% endblock %}
+
+{% block content %}
+<div class="fade-up">
+  <div class="page-header" style="display:flex;justify-content:space-between;align-items:center;">
+    <div>
+      <h1 class="page-title">Dashboard RRHH</h1>
+      <p class="page-sub">Resumen general de Recursos Humanos al {{ hoy|date:"d/m/Y" }}</p>
+    </div>
+    <div style="display:flex;gap:10px;">
+      <a href="{% url 'empleado_list' %}" class="btn btn-primary btn-sm">
+        <i data-lucide="users" style="width:14px;height:14px;"></i> Ver Empleados
+      </a>
+      <a href="{% url 'asistencia_masiva' %}" class="btn btn-outline-warning btn-sm d-inline-flex align-items-center gap-1" style="min-height:36px; border-color: rgba(251, 191, 36, 0.4); color: #fbbf24;">
+        <i data-lucide="list-checks" style="width:14px;height:14px;"></i> Asistencia Diaria Masiva
+      </a>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(250px, 1fr));gap:20px;margin-bottom:20px;">
+    <!-- Cards -->
+    <div class="card" style="border-left: 4px solid var(--blue);">
+      <h3 style="font-size:14px;font-weight:600;color:var(--txt-2);">Total Empleados Activos</h3>
+      <div style="font-size:32px;font-weight:800;color:var(--blue);margin-top:10px;">{{ total_empleados }}</div>
+    </div>
+    <div class="card" style="border-left: 4px solid var(--green);">
+      <h3 style="font-size:14px;font-weight:600;color:var(--txt-2);">Nómina Base Estimada</h3>
+      <div style="font-size:32px;font-weight:800;color:var(--green);margin-top:10px;">${{ total_sueldos|floatformat:0 }}</div>
+    </div>
+    <div class="card" style="border-left: 4px solid var(--purple);">
+      <h3 style="font-size:14px;font-weight:600;color:var(--txt-2);">Liquidaciones Mes Actual</h3>
+      <div style="font-size:32px;font-weight:800;color:var(--purple);margin-top:10px;">{{ liq_mes_actual }} / {{ total_empleados }}</div>
+    </div>
+  </div>
+</div>
+{% endblock %}

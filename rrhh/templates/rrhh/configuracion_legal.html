@@ -1,0 +1,114 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Configuración Legal RRHH — SIB Bark{% endblock %}
+
+{% block content %}
+<div class="fade-up">
+
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+    <a href="{% url 'empleado_list' %}" class="btn btn-ghost btn-sm">
+      <i data-lucide="arrow-left" style="width:15px;height:15px;"></i> Volver a RRHH
+    </a>
+  </div>
+
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">Configuración Legal y Tramos Vigentes</h1>
+      <p class="page-sub">Actualice aquí los topes, AFPs y tramos de impuesto único mes a mes.</p>
+    </div>
+  </div>
+
+  <form method="POST">
+    {% csrf_token %}
+    
+    <!-- Parámetros Legales (UF) -->
+    <div class="card mb-4">
+      <h3 style="font-size:16px;font-weight:700;margin-bottom:16px;color:var(--txt);">Topes Imponibles (UF)</h3>
+      {{ param_formset.management_form }}
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+        {% for form in param_formset %}
+          <div style="background:rgba(255,255,255,.02);padding:16px;border-radius:8px;border:1px solid var(--border);">
+            {{ form.id }}
+            <div class="form-group mb-2">
+              <label class="form-label" style="font-size:11px;font-weight:600;">Regla Parámetro</label>
+              {{ form.nombre }}
+            </div>
+            <div class="form-group mb-0">
+              <label class="form-label" style="font-size:11px;font-weight:600;">Valor Asignado (UF)</label>
+              {{ form.valor_moneda }}
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- AFP -->
+    <div class="card mb-4">
+      <h3 style="font-size:16px;font-weight:700;margin-bottom:16px;color:var(--txt);">Tablas y Comisiones de AFP (%)</h3>
+      {{ afp_formset.management_form }}
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Administradora</th>
+              <th style="width:200px;">Comisión (%)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for form in afp_formset %}
+            <tr>
+              <td>{{ form.id }}{{ form.nombre }}</td>
+              <td>{{ form.comision_porcentaje }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Impuesto Único -->
+    <div class="card mb-4">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <h3 style="font-size:16px;font-weight:700;color:var(--txt);margin:0;">Tabla de Impuesto Único de Segunda Categoría</h3>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <label style="font-size:12px;font-weight:600;color:var(--txt-2);">Valor UTM Referencial ($):</label>
+          <input type="number" name="utm_global" id="utm_global" class="form-control" style="width:120px;height:32px;font-size:13px;" value="{{ actual_utm|floatformat:0 }}">
+        </div>
+      </div>
+      
+      {{ tabla_formset.management_form }}
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Tramo Desde (UTM)</th>
+              <th>Tramo Hasta (UTM)</th>
+              <th>Factor (Exento 0.0)</th>
+              <th>Rebaja Ajustada ($)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for form in tabla_formset %}
+            <tr>
+              <td>{{ form.id }}{{ form.tramo_desde_utm }}</td>
+              <td>{{ form.tramo_hasta_utm }}</td>
+              <td>{{ form.factor }}</td>
+              <td>{{ form.rebaja }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Submit -->
+    <div style="text-align:right;margin-bottom:40px;">
+      <button type="submit" class="btn btn-primary">
+        <i data-lucide="save" style="width:16px;height:16px;"></i> Guardar Todas las Configuraciones
+      </button>
+    </div>
+
+  </form>
+
+</div>
+{% endblock %}

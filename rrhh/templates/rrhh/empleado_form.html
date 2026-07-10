@@ -1,0 +1,129 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Nuevo Empleado — SIB Bark{% endblock %}
+
+{% block content %}
+<div class="fade-up">
+
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+    <a href="{% url 'empleado_list' %}" class="btn btn-ghost btn-sm">
+      <i data-lucide="arrow-left" style="width:15px;height:15px;"></i> Volver a RRHH
+    </a>
+  </div>
+
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">{{ titulo }}</h1>
+      <p class="page-sub">Ingresa la ficha completa del trabajador.</p>
+    </div>
+  </div>
+
+  <form method="POST">
+    {% csrf_token %}
+    <div class="card mb-4">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+        
+        <div>
+          <h4 style="font-size:14px;color:var(--txt);margin-bottom:12px;border-bottom:1px solid var(--border);padding-bottom:5px;">Datos Personales</h4>
+          
+          <div class="form-group mb-2">
+            <label class="form-label" style="font-size:12px;font-weight:600;">Nombre Completo</label>
+            {{ form.nombre_completo }}
+          </div>
+          
+          <div class="form-group mb-2">
+            <label class="form-label" style="font-size:12px;font-weight:600;">RUT</label>
+            {{ form.rut }}
+          </div>
+          
+          <div class="form-group mb-2">
+            <label class="form-label" style="font-size:12px;font-weight:600;">Dirección</label>
+            {{ form.direccion }}
+          </div>
+          
+          <div class="form-group mb-2">
+            <label class="form-label" style="font-size:12px;font-weight:600;">Cuenta Bancaria</label>
+            {{ form.cuenta_bancaria }}
+          </div>
+          
+          <div class="form-group mb-2">
+            <label class="form-label" style="font-size:12px;font-weight:600;">Banco</label>
+            {{ form.banco }}
+          </div>
+        </div>
+
+        <div>
+          <h4 style="font-size:14px;color:var(--txt);margin-bottom:12px;border-bottom:1px solid var(--border);padding-bottom:5px;">Datos Contractuales</h4>
+          
+          <div class="form-group mb-2">
+            <label class="form-label" style="font-size:12px;font-weight:600;">Cargo</label>
+            {{ form.cargo }}
+          </div>
+          
+          <div class="form-group mb-2">
+            <label class="form-label" style="font-size:12px;font-weight:600;">Unidad de Negocio</label>
+            {{ form.unidad_negocio }}
+          </div>
+          
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+            <div class="form-group mb-2">
+              <label class="form-label" style="font-size:12px;font-weight:600;">Fecha Ingreso</label>
+              {{ form.fecha_ingreso }}
+            </div>
+            <div class="form-group mb-2">
+              <label class="form-label" style="font-size:12px;font-weight:600;">Fecha Término</label>
+              {{ form.fecha_termino }}
+            </div>
+          </div>
+          
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+            <div class="form-group mb-2">
+              <label class="form-label" style="font-size:12px;font-weight:600;">Tipo de Contrato</label>
+              {{ form.tipo_contrato }}
+            </div>
+            <div class="form-group mb-2">
+              <label class="form-label" style="font-size:12px;font-weight:600;">Sueldo Base ($)</label>
+              {{ form.sueldo_base }}
+            </div>
+          </div>
+          
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+            <div class="form-group mb-2">
+              <label class="form-label" style="font-size:12px;font-weight:600;">AFP</label>
+              {{ form.afp }}
+            </div>
+            <div class="form-group mb-2">
+              <label class="form-label" style="font-size:12px;font-weight:600;">Salud</label>
+              {{ form.sistema_salud }}
+            </div>
+          </div>
+          
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+             <div class="form-group mb-2">
+              <label class="form-label" style="font-size:12px;font-weight:600;">Isapre Nombre</label>
+              {{ form.isapre_nombre }}
+            </div>
+            <div class="form-group mb-2">
+              <label class="form-label" style="font-size:12px;font-weight:600;">Isapre Plan (UF)</label>
+              {{ form.isapre_plan_uf }}
+            </div>
+          </div>
+          
+          <div class="form-check mt-3">
+             {{ form.activo }}
+             <label class="form-check-label" style="font-size:12px;color:var(--txt);">Empleado Activo</label>
+          </div>
+          
+        </div>
+      </div>
+    </div>
+    
+    <div style="text-align:right;">
+      <button type="submit" class="btn btn-primary px-4">
+        <i data-lucide="save" style="width:16px;height:16px;"></i> Guardar Empleado
+      </button>
+    </div>
+  </form>
+
+</div>
+{% endblock %}

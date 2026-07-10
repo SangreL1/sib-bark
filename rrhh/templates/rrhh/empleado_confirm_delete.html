@@ -1,0 +1,30 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Eliminar Empleado — SIB Bark{% endblock %}
+
+{% block content %}
+<div class="fade-up">
+
+  <div class="page-header">
+    <h1 class="page-title">Eliminar Empleado</h1>
+    <p class="page-sub">Confirmar eliminación del sistema</p>
+  </div>
+
+  <div class="card" style="max-width:500px;margin:0 auto;text-align:center;">
+    <div style="color:var(--rose);margin-bottom:16px;">
+      <i data-lucide="alert-triangle" style="width:48px;height:48px;stroke-width:1.5;"></i>
+    </div>
+    <h2 style="font-size:20px;font-weight:800;margin-bottom:12px;">¿Estás seguro?</h2>
+    <p style="color:var(--txt-2);margin-bottom:24px;">Estás a punto de eliminar a <strong>{{ empleado.nombre_completo }}</strong>. Esta acción no se puede deshacer y borrará también todas sus liquidaciones y asistencias asociadas.</p>
+    
+    <form method="POST">
+      {% csrf_token %}
+      <div style="display:flex;gap:12px;justify-content:center;">
+        <a href="{% url 'empleado_detail' empleado.id %}" class="btn btn-outline-secondary">Cancelar</a>
+        <button type="submit" class="btn btn-danger">Sí, Confirmar Eliminación</button>
+      </div>
+    </form>
+  </div>
+
+</div>
+{% endblock %}

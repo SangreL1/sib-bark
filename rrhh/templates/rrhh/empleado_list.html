@@ -1,0 +1,70 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Nómina de Empleados — SIB Bark{% endblock %}
+
+{% block content %}
+<div class="fade-up">
+
+  <div class="page-header" style="display:flex;justify-content:space-between;align-items:center;">
+    <div>
+      <h1 class="page-title">Personal (RRHH)</h1>
+      <p class="page-sub">{{ empleados.count }} empleado{{ empleados.count|pluralize }} registrado{{ empleados.count|pluralize }}</p>
+    </div>
+    <div style="display:flex;gap:10px;">
+      <a href="{% url 'empleado_create' %}" class="btn btn-primary btn-sm">
+        <i data-lucide="plus" style="width:14px;height:14px;"></i> Nuevo Empleado
+      </a>
+      <a href="{% url 'asistencia_masiva' %}" class="btn btn-outline-warning btn-sm" style="color: #fbbf24; border-color: rgba(251, 191, 36, 0.4);">
+        <i data-lucide="list-checks" style="width:14px;height:14px;"></i> Asistencia Diaria
+      </a>
+      <a href="{% url 'rrhh_dashboard' %}" class="btn btn-outline-secondary btn-sm">
+        <i data-lucide="layout-dashboard" style="width:14px;height:14px;"></i> Dashboard
+      </a>
+      <a href="{% url 'configuracion_legal' %}" class="btn btn-outline-primary btn-sm">
+        <i data-lucide="settings" style="width:14px;height:14px;"></i> Trámites y Legal
+      </a>
+    </div>
+  </div>
+
+  <div class="card-flat">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Nombre Completo</th>
+            <th>RUT</th>
+            <th>Cargo</th>
+            <th>Contrato</th>
+            <th>Unidad de Negocio</th>
+            <th style="text-align:center;">Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for emp in empleados %}
+          <tr>
+            <td style="font-weight:700;color:var(--txt);">
+              <a href="{% url 'empleado_detail' emp.id %}" style="color:var(--purple);">{{ emp.nombre_completo }}</a>
+              {% if not emp.activo %}<span class="badge badge-danger">Inactivo</span>{% endif %}
+            </td>
+            <td style="font-size:12px;">{{ emp.rut }}</td>
+            <td style="font-size:12px;">{{ emp.cargo }}</td>
+            <td style="font-size:12px;">{{ emp.tipo_contrato }}</td>
+            <td style="font-size:12px;">{{ emp.unidad_negocio }}</td>
+            <td style="text-align:center;">
+              <a href="{% url 'empleado_detail' emp.id %}" class="btn btn-ghost btn-sm" title="Ver ficha">
+                <i data-lucide="eye" style="width:14px;height:14px;"></i>
+              </a>
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="6" style="text-align:center;padding:24px;color:var(--txt-3);">No hay empleados registrados.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

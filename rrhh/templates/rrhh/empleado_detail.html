@@ -1,0 +1,76 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Ficha: {{ empleado.nombre_completo }} — SIB Bark{% endblock %}
+
+{% block content %}
+<div class="fade-up">
+
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+    <a href="{% url 'empleado_list' %}" class="btn btn-ghost btn-sm">
+      <i data-lucide="arrow-left" style="width:15px;height:15px;"></i> Volver a RRHH
+    </a>
+    <a href="{% url 'asistencia_mensual' empleado.id %}" class="btn btn-outline-warning btn-sm d-inline-flex align-items-center gap-1" style="min-height:36px; border-color: rgba(251, 191, 36, 0.4); color: #fbbf24;">
+      <i data-lucide="calendar" style="width:14px;height:14px;"></i> Marcar Asistencia Mensual
+    </a>
+    <a href="{% url 'empleado_delete' empleado.id %}" class="btn btn-outline-danger btn-sm d-inline-flex align-items-center gap-1" style="min-height:36px; border-color: rgba(244,63,94,0.3); color: var(--rose);">
+      <i data-lucide="trash-2" style="width:14px;height:14px;"></i> Eliminar
+    </a>
+  </div>
+
+  <div class="card mb-4">
+    <h3 style="font-size:18px;font-weight:800;margin-bottom:16px;">{{ empleado.nombre_completo }}</h3>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(200px, 1fr));gap:12px;">
+      <div><strong>RUT:</strong> {{ empleado.rut }}</div>
+      <div><strong>Cargo:</strong> {{ empleado.cargo }}</div>
+      <div><strong>Contrato:</strong> {{ empleado.tipo_contrato }}</div>
+      <div><strong>Sueldo Base:</strong> ${{ empleado.sueldo_base|floatformat:0 }}</div>
+      <div><strong>AFP:</strong> {{ empleado.afp.nombre }}</div>
+      <div><strong>Salud:</strong> {{ empleado.sistema_salud }}</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <h3 style="font-size:15px;font-weight:700;margin:0;">Liquidaciones Generadas</h3>
+      <form action="{% url 'liquidacion_generar' empleado.id %}" method="POST" style="display:flex;gap:8px;">
+        {% csrf_token %}
+        <input type="number" name="mes" value="{{ hoy.month }}" class="form-control" style="width:70px;min-height:32px;font-size:12px;" required>
+        <input type="number" name="anio" value="{{ hoy.year }}" class="form-control" style="width:80px;min-height:32px;font-size:12px;" required>
+        <button type="submit" class="btn btn-primary btn-sm" style="min-height:32px;">Generar Base</button>
+      </form>
+    </div>
+    
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Mes / Año</th>
+            <th style="text-align:right;">Sueldo Base</th>
+            <th style="text-align:right;">Líquido a Pago</th>
+            <th style="text-align:center;">PDF</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for liq in liquidaciones %}
+          <tr>
+            <td style="font-weight:700;">{{ liq.mes|stringformat:"02d" }} / {{ liq.anio }}</td>
+            <td style="text-align:right;">${{ liq.sueldo_base|floatformat:0 }}</td>
+            <td style="text-align:right;color:var(--green);font-weight:700;">${{ liq.liquido_a_pago|floatformat:0 }}</td>
+            <td style="text-align:center;">
+              <a href="{% url 'liquidacion_pdf' empleado.id liq.mes liq.anio %}" class="btn btn-ghost btn-sm" style="color:var(--purple);">
+                <i data-lucide="download" style="width:14px;height:14px;"></i> PDF Liquidación
+              </a>
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="4" style="text-align:center;padding:24px;color:var(--txt-3);">No hay liquidaciones generadas para este empleado.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

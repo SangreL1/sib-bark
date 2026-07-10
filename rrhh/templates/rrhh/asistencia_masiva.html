@@ -1,0 +1,85 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Asistencia Masiva — SIB Bark{% endblock %}
+
+{% block content %}
+<div class="fade-up">
+
+  <div class="page-header" style="display:flex;justify-content:space-between;align-items:center;">
+    <div>
+      <h1 class="page-title">Asistencia Diaria Masiva</h1>
+      <p class="page-sub">Registra rápidamente la asistencia diaria de tu personal.</p>
+    </div>
+    <div style="display:flex;gap:10px;">
+      <a href="{% url 'empleado_list' %}" class="btn btn-ghost btn-sm">
+        <i data-lucide="arrow-left" style="width:14px;height:14px;"></i> Volver a Nómina
+      </a>
+      <a href="{% url 'rrhh_dashboard' %}" class="btn btn-outline-primary btn-sm">
+        <i data-lucide="layout-dashboard" style="width:14px;height:14px;"></i> Dashboard RRHH
+      </a>
+    </div>
+  </div>
+
+  <div class="card mb-4" style="background:rgba(59,130,246,.05);border-color:rgba(59,130,246,.2);">
+    <form method="GET" style="display:flex;gap:8px; align-items:flex-end;">
+      <div>
+        <label style="font-size:12px;font-weight:700;color:var(--txt-2);margin-bottom:4px;display:block;">Fecha de Asistencia</label>
+        <input type="date" name="fecha" value="{{ fecha_str }}" class="form-control" style="min-height:36px;">
+      </div>
+      <button type="submit" class="btn btn-primary" style="min-height:36px;">Cargar Fecha</button>
+    </form>
+  </div>
+
+  <form method="POST">
+    {% csrf_token %}
+    <input type="hidden" name="fecha_post" value="{{ fecha_str }}">
+    <div class="card">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Empleado</th>
+              <th>Estado / Tipo</th>
+              <th>Horas Trabajadas</th>
+              <th>Horas Extra</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in asistencia_data %}
+            <tr>
+              <td style="font-weight:700;color:var(--purple);">
+                <a href="{% url 'empleado_detail' item.empleado.id %}" target="_blank" style="color:inherit;text-decoration:none;">{{ item.empleado.nombre_completo }}</a>
+              </td>
+              <td>
+                <select name="tipo_{{ item.empleado.id }}" class="form-control" style="font-size:12px;padding:4px 8px;min-height:30px;">
+                  {% for val, name in tipos_choices %}
+                  <option value="{{ val }}" {% if item.asistencia and item.asistencia.tipo == val %}selected{% elif not item.asistencia and val == 'Presente' %}selected{% endif %}>{{ name }}</option>
+                  {% endfor %}
+                </select>
+              </td>
+              <td>
+                <input type="number" step="0.1" name="horas_trabajadas_{{ item.empleado.id }}" value="{% if item.asistencia %}{{ item.asistencia.horas_trabajadas }}{% else %}8.0{% endif %}" class="form-control" style="width:80px;font-size:12px;padding:4px 8px;min-height:30px;">
+              </td>
+              <td>
+                <input type="number" step="0.1" name="horas_extra_{{ item.empleado.id }}" value="{% if item.asistencia %}{{ item.asistencia.horas_extra }}{% else %}0{% endif %}" class="form-control" style="width:80px;font-size:12px;padding:4px 8px;min-height:30px;">
+              </td>
+            </tr>
+            {% empty %}
+            <tr>
+              <td colspan="4" style="text-align:center;padding:24px;color:var(--txt-3);">No hay empleados activos.</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      
+      <div style="margin-top:20px;text-align:right;">
+        <button type="submit" class="btn btn-primary">
+          <i data-lucide="save" style="width:16px;height:16px;"></i> Guardar Asistencia del Día
+        </button>
+      </div>
+    </div>
+  </form>
+
+</div>
+{% endblock %}

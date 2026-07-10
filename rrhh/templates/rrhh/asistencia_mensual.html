@@ -1,0 +1,103 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Asistencia: {{ empleado.nombre_completo }} — SIB Bark{% endblock %}
+
+{% block content %}
+<div class="fade-up">
+
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+    <a href="{% url 'empleado_detail' empleado.id %}" class="btn btn-ghost btn-sm">
+      <i data-lucide="arrow-left" style="width:15px;height:15px;"></i> Volver a Ficha
+    </a>
+    <form method="GET" style="display:flex;gap:8px;">
+      <select name="mes" class="form-control" style="width:auto;min-height:36px;font-size:12px;">
+        <option value="1" {% if mes == 1 %}selected{% endif %}>Enero</option>
+        <option value="2" {% if mes == 2 %}selected{% endif %}>Febrero</option>
+        <option value="3" {% if mes == 3 %}selected{% endif %}>Marzo</option>
+        <option value="4" {% if mes == 4 %}selected{% endif %}>Abril</option>
+        <option value="5" {% if mes == 5 %}selected{% endif %}>Mayo</option>
+        <option value="6" {% if mes == 6 %}selected{% endif %}>Junio</option>
+        <option value="7" {% if mes == 7 %}selected{% endif %}>Julio</option>
+        <option value="8" {% if mes == 8 %}selected{% endif %}>Agosto</option>
+        <option value="9" {% if mes == 9 %}selected{% endif %}>Septiembre</option>
+        <option value="10" {% if mes == 10 %}selected{% endif %}>Octubre</option>
+        <option value="11" {% if mes == 11 %}selected{% endif %}>Noviembre</option>
+        <option value="12" {% if mes == 12 %}selected{% endif %}>Diciembre</option>
+      </select>
+      <input type="number" name="anio" value="{{ anio }}" class="form-control" style="width:80px;min-height:36px;font-size:12px;">
+      <button type="submit" class="btn btn-outline-primary btn-sm">Cargar</button>
+    </form>
+  </div>
+
+  <div class="card mb-4" style="background:rgba(59,130,246,.05);border-color:rgba(59,130,246,.2);">
+    <h3 style="font-size:16px;font-weight:700;color:var(--blue);margin-bottom:8px;">Control de Asistencia: Mes {{ mes }} / {{ anio }}</h3>
+    <p style="font-size:13px;color:var(--txt-2);margin-bottom:0;">Empleado: <strong>{{ empleado.nombre_completo }}</strong></p>
+    
+    <div style="display:flex;gap:20px;margin-top:16px;">
+      <div><span style="font-size:11px;color:var(--txt-3);">Días Presentes</span> <br><strong style="font-size:18px;color:var(--green);">{{ presentes }}</strong></div>
+      <div><span style="font-size:11px;color:var(--txt-3);">Faltas</span> <br><strong style="font-size:18px;color:var(--rose);">{{ faltas }}</strong></div>
+      <div><span style="font-size:11px;color:var(--txt-3);">Total Hrs Extra</span> <br><strong style="font-size:18px;color:var(--amber);">{{ total_extras }}</strong></div>
+    </div>
+  </div>
+
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-top:16px;margin-bottom:-16px;">
+    <form method="POST" action="{% url 'asistencia_mensual_llena' empleado.id %}" style="margin:0;">
+      {% csrf_token %}
+      <input type="hidden" name="mes" value="{{ mes }}">
+      <input type="hidden" name="anio" value="{{ anio }}">
+      <button type="submit" class="btn btn-outline-success btn-sm" onclick="return confirm('¿Seguro que deseas marcar todos los días del mes actual como Presentes (8 horas)?');">
+        <i data-lucide="check-circle" style="width:14px;height:14px;"></i> Llenar Mes Completo
+      </button>
+    </form>
+  </div>
+
+  <form method="POST">
+    {% csrf_token %}
+    <div class="card">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>Día</th>
+              <th>Estado / Tipo</th>
+              <th>Horas Trabajadas</th>
+              <th>Horas Extra (Sobrejornada)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for a in asistencias %}
+            <tr>
+              <td style="font-weight:700;">{{ a.fecha|date:"d/m/Y" }}</td>
+              <td style="font-size:12px;">{{ a.fecha|date:"l" }}</td>
+              <td>
+                <select name="tipo_{{ a.fecha.day }}" class="form-control" style="font-size:12px;padding:4px 8px;min-height:30px;">
+                  <option value="Presente" {% if a.tipo == 'Presente' %}selected{% endif %}>Presente</option>
+                  <option value="Falta Justificada" {% if a.tipo == 'Falta Justificada' %}selected{% endif %}>Falta Justificada</option>
+                  <option value="Falta Injustificada" {% if a.tipo == 'Falta Injustificada' %}selected{% endif %}>Falta Injustificada</option>
+                  <option value="Licencia Médica" {% if a.tipo == 'Licencia Médica' %}selected{% endif %}>Licencia Médica</option>
+                  <option value="Vacaciones" {% if a.tipo == 'Vacaciones' %}selected{% endif %}>Vacaciones</option>
+                  <option value="Feriado" {% if a.tipo == 'Feriado' %}selected{% endif %}>Feriado</option>
+                </select>
+              </td>
+              <td>
+                <input type="number" step="0.1" name="horas_trabajadas_{{ a.fecha.day }}" value="{{ a.horas_trabajadas }}" class="form-control" style="width:80px;font-size:12px;padding:4px 8px;min-height:30px;">
+              </td>
+              <td>
+                <input type="number" step="0.1" name="horas_extra_{{ a.fecha.day }}" value="{{ a.horas_extra }}" class="form-control" style="width:80px;font-size:12px;padding:4px 8px;min-height:30px;">
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div style="margin-top:20px;text-align:right;">
+        <button type="submit" class="btn btn-primary">
+          <i data-lucide="save" style="width:16px;height:16px;"></i> Guardar Asistencia Mensual
+        </button>
+      </div>
+    </div>
+  </form>
+
+</div>
+{% endblock %}
