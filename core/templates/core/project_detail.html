@@ -965,9 +965,21 @@
                         <td style="text-align:right;color:var(--green);font-weight:600;">{{ item.cantidad_entregada }}</td>
                         <td style="text-align:right;font-weight:700;color:var(--green);">${{ item.valor_total|floatformat:0 }}</td>
                         <td style="text-align:center;">
-                          <button type="button" class="btn btn-ghost btn-sm" onclick="editItem('{{ item.id }}', '{{ item.descripcion|escapejs }}', '{{ item.size_code|escapejs }}', '{{ item.cantidad }}')" style="padding:2px 4px;color:var(--blue);" title="Editar Ítem">
-                            <i data-lucide="pencil" style="width:12px;height:12px;"></i>
-                          </button>
+                           <button type="button" class="btn btn-ghost btn-sm"
+                              data-id="{{ item.id }}"
+                              data-linea="{{ item.linea|escapejs }}"
+                              data-itemcode="{{ item.item_code|default:''|escapejs }}"
+                              data-sizecode="{{ item.size_code|default:''|escapejs }}"
+                              data-desc="{{ item.descripcion|escapejs }}"
+                              data-codigo="{{ item.codigo|default:''|escapejs }}"
+                              data-unidad="{{ item.unidad|escapejs }}"
+                              data-peso="{{ item.peso_unitario_kg|default:'0' }}"
+                              data-cant="{{ item.cantidad|default:'0' }}"
+                              data-entregada="{{ item.cantidad_entregada|default:'0' }}"
+                              data-precio="{{ item.precio_unitario|default:'0' }}"
+                              onclick="editItem(this)" style="padding:2px 4px;color:var(--blue);" title="Editar Ítem">
+                             <i data-lucide="pencil" style="width:12px;height:12px;"></i>
+                           </button>
                         </td>
                      </tr>
                      {% endfor %}
@@ -988,7 +1000,25 @@
              </h4>
              <form id="bomItemForm" action="{% url 'add_item' project.numero_oc %}" method="POST">
                 {% csrf_token %}
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;margin-bottom:10px;">
+                   <div class="form-group" style="margin-bottom:0;">
+                      <label class="form-label" style="font-size:10px;text-transform:uppercase;letter-spacing:.04em;">Línea</label>
+                      {{ item_form.linea }}
+                   </div>
+                   <div class="form-group" style="margin-bottom:0;">
+                      <label class="form-label" style="font-size:10px;text-transform:uppercase;letter-spacing:.04em;">Cód. Ítem</label>
+                      {{ item_form.item_code }}
+                   </div>
+                   <div class="form-group" style="margin-bottom:0;">
+                      <label class="form-label" style="font-size:10px;text-transform:uppercase;letter-spacing:.04em;">Código Plano</label>
+                      {{ item_form.codigo }}
+                   </div>
+                   <div class="form-group" style="margin-bottom:0;">
+                      <label class="form-label" style="font-size:10px;text-transform:uppercase;letter-spacing:.04em;">U.M.</label>
+                      {{ item_form.unidad }}
+                   </div>
+                </div>
+                <div style="display:grid;grid-template-columns:2fr 1fr;gap:10px;margin-bottom:10px;">
                    <div class="form-group" style="margin-bottom:0;">
                       <label class="form-label" style="font-size:10px;text-transform:uppercase;letter-spacing:.04em;">Marca (Nombre de la Pieza)</label>
                       {{ item_form.descripcion }}
@@ -998,10 +1028,22 @@
                       {{ item_form.size_code }}
                    </div>
                 </div>
-                <div style="display:grid;grid-template-columns:1fr;gap:10px;margin-bottom:12px;">
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;margin-bottom:12px;">
+                   <div class="form-group" style="margin-bottom:0;">
+                      <label class="form-label" style="font-size:10px;text-transform:uppercase;letter-spacing:.04em;">Masa Unit (kg)</label>
+                      {{ item_form.peso_unitario_kg }}
+                   </div>
                    <div class="form-group" style="margin-bottom:0;">
                       <label class="form-label" style="font-size:10px;text-transform:uppercase;letter-spacing:.04em;">Cantidad</label>
                       {{ item_form.cantidad }}
+                   </div>
+                   <div class="form-group" style="margin-bottom:0;">
+                      <label class="form-label" style="font-size:10px;text-transform:uppercase;letter-spacing:.04em;">Entregado</label>
+                      {{ item_form.cantidad_entregada }}
+                   </div>
+                   <div class="form-group" style="margin-bottom:0;">
+                      <label class="form-label" style="font-size:10px;text-transform:uppercase;letter-spacing:.04em;">Precio Unit. ($)</label>
+                      {{ item_form.precio_unitario }}
                    </div>
                 </div>
                 <div style="display:flex; gap:10px;">
@@ -1014,14 +1056,33 @@
                 </div>
              </form>
              <script>
-               function editItem(itemId, desc, size, cant) {
+               function editItem(btn) {
+                 const itemId = btn.getAttribute('data-id');
+                 const linea = btn.getAttribute('data-linea');
+                 const itemcode = btn.getAttribute('data-itemcode');
+                 const sizecode = btn.getAttribute('data-sizecode');
+                 const desc = btn.getAttribute('data-desc');
+                 const codigo = btn.getAttribute('data-codigo');
+                 const unidad = btn.getAttribute('data-unidad');
+                 const peso = btn.getAttribute('data-peso');
+                 const cant = btn.getAttribute('data-cant');
+                 const entregada = btn.getAttribute('data-entregada');
+                 const precio = btn.getAttribute('data-precio');
+
                  const form = document.getElementById('bomItemForm');
                  // Cambiamos la URL a editar
                  form.action = "{% url 'add_item' project.numero_oc %}".replace('agregar-item', 'editar-item/' + itemId);
                  
+                 document.getElementById('id_linea').value = linea;
+                 document.getElementById('id_item_code').value = itemcode;
+                 document.getElementById('id_size_code').value = sizecode;
                  document.getElementById('id_descripcion').value = desc;
-                 document.getElementById('id_size_code').value = size;
+                 document.getElementById('id_codigo').value = codigo;
+                 document.getElementById('id_unidad').value = unidad;
+                 document.getElementById('id_peso_unitario_kg').value = peso.replace(',', '.');
                  document.getElementById('id_cantidad').value = cant.replace(',', '.'); 
+                 document.getElementById('id_cantidad_entregada').value = entregada.replace(',', '.');
+                 document.getElementById('id_precio_unitario').value = precio.replace(',', '.');
                  
                  document.getElementById('textSubmitBom').innerText = "Guardar Cambios";
                  document.getElementById('btnSubmitBom').classList.remove('btn-primary');

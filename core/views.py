@@ -663,17 +663,15 @@ def edit_item(request, numero_oc, item_id):
         form = ItemOCForm(request.POST, instance=item)
         if form.is_valid():
             nueva_cantidad = form.cleaned_data['cantidad']
-            if nueva_cantidad < item.cantidad_entregada:
-                messages.error(request, f'No puedes reducir la cantidad por debajo de lo ya entregado ({item.cantidad_entregada} unidades).')
+            nueva_entregada = form.cleaned_data['cantidad_entregada']
+            
+            if nueva_cantidad < nueva_entregada:
+                messages.error(request, f'No puedes reducir la cantidad ({nueva_cantidad}) por debajo de lo entregado ({nueva_entregada} unidades).')
                 return redirect('project_detail', numero_oc=numero_oc)
             
             cambios = []
-            if 'descripcion' in form.changed_data:
-                cambios.append(f"Marca a '{form.cleaned_data['descripcion']}'")
-            if 'size_code' in form.changed_data:
-                cambios.append(f"Medidas a '{form.cleaned_data['size_code']}'")
-            if 'cantidad' in form.changed_data:
-                cambios.append(f"Cantidad a {form.cleaned_data['cantidad']}")
+            for field in form.changed_data:
+                cambios.append(f"{field.capitalize()} a '{form.cleaned_data[field]}'")
                 
             item = form.save()
             project.recalcular_porcentaje()

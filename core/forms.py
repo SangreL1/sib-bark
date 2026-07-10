@@ -126,9 +126,13 @@ class CostoForm(forms.ModelForm):
 class ItemOCForm(forms.ModelForm):
     class Meta:
         model = ItemOC
-        # Solo los 3 campos. El peso se maneja desde Cotizacion o nivel OC.
-        fields = ['descripcion', 'cantidad', 'size_code']
+        fields = [
+            'linea', 'item_code', 'size_code', 'descripcion', 'codigo',
+            'unidad', 'peso_unitario_kg', 'cantidad', 'cantidad_entregada', 'precio_unitario'
+        ]
         widgets = {
+            'linea': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Línea'}),
+            'item_code': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Cód. Ítem'}),
             'descripcion':  forms.TextInput(attrs={
                 'class': 'form-control',
                 'placeholder': 'Ej. Soporte SP-1, Brida, Codo 90°'
@@ -142,11 +146,35 @@ class ItemOCForm(forms.ModelForm):
                 'class': 'form-control',
                 'placeholder': 'Ej. 6 IN, 200x35.9, 2" SCH40'
             }),
+            'codigo': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Código Plano'}),
+            'unidad': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'U.M.'}),
+            'peso_unitario_kg': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'placeholder': '0.00',
+                'step': '0.001'
+            }),
+            'cantidad_entregada': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'placeholder': '0',
+                'step': '0.01'
+            }),
+            'precio_unitario': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'placeholder': '0.00',
+                'step': '0.01'
+            }),
         }
         labels = {
+            'linea': 'Línea',
+            'item_code': 'Cód. Ítem',
             'descripcion': 'Marca (Nombre de la Pieza)',
-            'cantidad':    'Cantidad',
-            'size_code':   'Medidas',
+            'cantidad': 'Cantidad',
+            'size_code': 'Medidas',
+            'codigo': 'Código Plano',
+            'unidad': 'U.M.',
+            'peso_unitario_kg': 'Masa Unit. (kg)',
+            'cantidad_entregada': 'Entregado',
+            'precio_unitario': 'Precio Unitario ($)',
         }
 
 
