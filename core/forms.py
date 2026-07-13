@@ -67,11 +67,25 @@ class OrdenCompraForm(forms.ModelForm):
             'fmr_file': 'Subir FMR Adjunto',
         }
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for field in self.fields.values():
+            if isinstance(field, (forms.DecimalField, forms.FloatField)):
+                field.localize = True
+                field.widget.is_localized = True
+
 
 class OrdenCompraEditForm(forms.ModelForm):
     """Same as OrdenCompraForm but numero_oc is read-only."""
     class Meta(OrdenCompraForm.Meta):
         fields = [f for f in OrdenCompraForm.Meta.fields if f != 'numero_oc']
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for field in self.fields.values():
+            if isinstance(field, (forms.DecimalField, forms.FloatField)):
+                field.localize = True
+                field.widget.is_localized = True
 
 
 class FMRForm(forms.ModelForm):

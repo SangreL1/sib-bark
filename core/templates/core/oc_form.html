@@ -60,6 +60,24 @@
   <form method="POST" class="card-flat" id="ocFormMain" enctype="multipart/form-data">
     {% csrf_token %}
 
+    {% if form.errors %}
+      <div class="alert alert-danger" style="background-color: #fee2e2; border: 1px solid #ef4444; color: #b91c1c; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+        <h4 style="margin-top: 0; font-size: 14px; display: flex; align-items: center; gap: 8px;">
+          <i data-lucide="alert-triangle" style="width: 16px; height: 16px;"></i> Por favor corrige los siguientes errores:
+        </h4>
+        <ul style="margin-bottom: 0; padding-left: 20px; font-size: 13px;">
+          {% for field in form %}
+            {% for error in field.errors %}
+              <li><strong>{{ field.label }}:</strong> {{ error }}</li>
+            {% endfor %}
+          {% endfor %}
+          {% for error in form.non_field_errors %}
+            <li>{{ error }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+    {% endif %}
+
     <!-- 1. Identificación -->
     <div class="form-section">
       <div class="form-section-title">

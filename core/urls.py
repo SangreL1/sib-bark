@@ -16,9 +16,8 @@ urlpatterns = [
     path('buscar/', views.search, name='search'),
 
     # OC CRUD
+    # OC CRUD (creation only here, edit/delete moved to bottom to avoid path greediness)
     path('proyectos/nuevo/', views.oc_create, name='oc_create'),
-    path('proyecto/<path:numero_oc>/editar/', views.oc_edit, name='oc_edit'),
-    path('proyecto/<path:numero_oc>/eliminar/', views.oc_delete, name='oc_delete'),
     path('proyecto/<path:numero_oc>/agregar-costo/', views.add_cost, name='add_cost'),
     
     # Costos Detallados (Materiales y Mano de Obra)
@@ -66,6 +65,9 @@ urlpatterns = [
     path('cotizaciones/<int:cotizacion_id>/pdf/', views.cotizacion_pdf, name='cotizacion_pdf'),
     path('cotizaciones/<int:cotizacion_id>/item/<int:item_id>/eliminar/', views.cotizacion_item_delete, name='cotizacion_item_delete'),
 
+    # OC base routes (placed here so <path:numero_oc> doesn't swallow more specific routes)
+    path('proyecto/<path:numero_oc>/editar/', views.oc_edit, name='oc_edit'),
+    path('proyecto/<path:numero_oc>/eliminar/', views.oc_delete, name='oc_delete'),
     path('proyecto/<path:numero_oc>/', views.project_detail, name='project_detail'),
 
     # Import y Herramientas API
