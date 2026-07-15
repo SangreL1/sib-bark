@@ -27,15 +27,15 @@ class OrdenCompraForm(forms.ModelForm):
             'cliente': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Nombre del cliente'}),
             'proyecto': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Nombre o código del proyecto'}),
             'descripcion': forms.Textarea(attrs={'class': 'form-control', 'rows': 3, 'placeholder': 'Descripción del trabajo a realizar'}),
-            'fecha_oc': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
-            'fecha_compromiso': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+            'fecha_oc': forms.DateInput(format='%Y-%m-%d', attrs={'class': 'form-control', 'type': 'date'}),
+            'fecha_compromiso': forms.DateInput(format='%Y-%m-%d', attrs={'class': 'form-control', 'type': 'date'}),
             'tiempo_fabricacion': forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'Días hábiles'}),
             'valor_total': forms.NumberInput(attrs={'class': 'form-control', 'placeholder': '0'}),
             'estado': forms.Select(attrs={'class': 'form-control'}),
             'prioridad': forms.Select(attrs={'class': 'form-control'}),
             'guia_despacho_resumen': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'N° de guías emitidas'}),
             'factura_resumen': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'N° de factura'}),
-            'fecha_factura': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+            'fecha_factura': forms.DateInput(format='%Y-%m-%d', attrs={'class': 'form-control', 'type': 'date'}),
             'peso_total_manual': forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'Kg total (Opcional/Legacy)', 'step': '0.01'}),
             'observaciones': forms.Textarea(attrs={'class': 'form-control', 'rows': 2, 'placeholder': 'Notas adicionales'}),
             
@@ -67,12 +67,7 @@ class OrdenCompraForm(forms.ModelForm):
             'fmr_file': 'Subir FMR Adjunto',
         }
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        for field in self.fields.values():
-            if isinstance(field, (forms.DecimalField, forms.FloatField)):
-                field.localize = True
-                field.widget.is_localized = True
+
 
 
 class OrdenCompraEditForm(forms.ModelForm):
@@ -80,12 +75,7 @@ class OrdenCompraEditForm(forms.ModelForm):
     class Meta(OrdenCompraForm.Meta):
         fields = [f for f in OrdenCompraForm.Meta.fields if f != 'numero_oc']
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        for field in self.fields.values():
-            if isinstance(field, (forms.DecimalField, forms.FloatField)):
-                field.localize = True
-                field.widget.is_localized = True
+
 
 
 class FMRForm(forms.ModelForm):
@@ -94,7 +84,7 @@ class FMRForm(forms.ModelForm):
         fields = ['fmr_code', 'fecha', 'cotizacion', 'guia_despacho', 'factura', 'registro_link', 'registro_file']
         widgets = {
             'fmr_code': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej. 3528'}),
-            'fecha': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+            'fecha': forms.DateInput(format='%Y-%m-%d', attrs={'class': 'form-control', 'type': 'date'}),
             'cotizacion': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'N° Cotización'}),
             'guia_despacho': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'N° Guía(s)'}),
             'factura': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'N° Factura'}),
@@ -111,7 +101,7 @@ class EntregaForm(forms.ModelForm):
         model = Entrega
         fields = ['fecha_entrega', 'guia_despacho', 'guia_file', 'cantidad_entregada', 'estado', 'observaciones']
         widgets = {
-            'fecha_entrega': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+            'fecha_entrega': forms.DateInput(format='%Y-%m-%d', attrs={'class': 'form-control', 'type': 'date'}),
             'guia_despacho': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'N° Guía de Despacho'}),
             'guia_file': forms.ClearableFileInput(attrs={'class': 'form-control'}),
             'cantidad_entregada': forms.Textarea(attrs={'class': 'form-control', 'rows': 3, 'placeholder': 'Detalle de items entregados'}),
@@ -132,7 +122,7 @@ class CostoForm(forms.ModelForm):
             'descripcion': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej. Planchas de acero A36'}),
             'monto': forms.NumberInput(attrs={'class': 'form-control', 'placeholder': '0'}),
             'proveedor': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej. Aceros Chile S.A.'}),
-            'fecha': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+            'fecha': forms.DateInput(format='%Y-%m-%d', attrs={'class': 'form-control', 'type': 'date'}),
             'documento_referencia': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej. Factura 4122'}),
         }
 
@@ -235,7 +225,7 @@ class FacturaForm(forms.ModelForm):
         fields = ['numero_factura', 'fecha_emision', 'monto', 'estado', 'entrega', 'url_externa', 'archivo']
         widgets = {
             'numero_factura': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej. 004521'}),
-            'fecha_emision':  forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+            'fecha_emision':  forms.DateInput(format='%Y-%m-%d', attrs={'class': 'form-control', 'type': 'date'}),
             'monto':          forms.NumberInput(attrs={'class': 'form-control', 'placeholder': '0'}),
             'estado':         forms.Select(attrs={'class': 'form-control'}),
             'entrega':        forms.Select(attrs={'class': 'form-control'}),
@@ -264,7 +254,7 @@ class CostoMaterialForm(forms.ModelForm):
             'cantidad':       forms.NumberInput(attrs={'class': 'form-control', 'placeholder': '1', 'step': '0.01'}),
             'valor_unitario': forms.NumberInput(attrs={'class': 'form-control', 'placeholder': '0', 'step': '1'}),
             'proveedor':      forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Proveedor (opcional)'}),
-            'fecha_compra':   forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+            'fecha_compra':   forms.DateInput(format='%Y-%m-%d', attrs={'class': 'form-control', 'type': 'date'}),
             'observaciones':  forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Observaciones (opcional)'}),
         }
 
@@ -322,8 +312,8 @@ class PackingListForm(forms.ModelForm):
         model = PackingList
         fields = ['fecha_orden', 'fecha_envio', 'nombre_cliente', 'empresa', 'direccion', 'correo', 'telefono', 'tipo_medida']
         widgets = {
-            'fecha_orden': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
-            'fecha_envio': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+            'fecha_orden': forms.DateInput(format='%Y-%m-%d', attrs={'class': 'form-control', 'type': 'date'}),
+            'fecha_envio': forms.DateInput(format='%Y-%m-%d', attrs={'class': 'form-control', 'type': 'date'}),
             'nombre_cliente': forms.TextInput(attrs={'class': 'form-control'}),
             'empresa': forms.TextInput(attrs={'class': 'form-control'}),
             'direccion': forms.TextInput(attrs={'class': 'form-control'}),
@@ -347,8 +337,8 @@ class CotizacionForm(forms.ModelForm):
             'ciudad_receptor', 'observaciones',
         ]
         widgets = {
-            'fecha': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
-            'valido_hasta': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+            'fecha': forms.DateInput(format='%Y-%m-%d', attrs={'class': 'form-control', 'type': 'date'}),
+            'valido_hasta': forms.DateInput(format='%Y-%m-%d', attrs={'class': 'form-control', 'type': 'date'}),
             'cliente_id': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej. 1068'}),
             'contacto_nombre': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej. Sr. Javier Palma'}),
             'contacto_cargo': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Cargo del contacto'}),
@@ -404,7 +394,7 @@ class GuiaDespachoForm(forms.ModelForm):
         ]
         widgets = {
             'numero_guia': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej. 1556'}),
-            'fecha_emision': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+            'fecha_emision': forms.DateInput(format='%Y-%m-%d', attrs={'class': 'form-control', 'type': 'date'}),
             'receptor_nombre': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Razón Social'}),
             'receptor_rut': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'RUT'}),
             'receptor_giro': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Giro'}),

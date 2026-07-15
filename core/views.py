@@ -379,6 +379,13 @@ def oc_create(request):
                             fe = None
 
                         try:
+                            # Try parse peso_unitario_kg if extracted
+                            peso_str = str(data.get('peso_unitario_kg', '')).strip()
+                            try:
+                                peso_val = float(peso_str) if peso_str else None
+                            except (ValueError, TypeError):
+                                peso_val = None
+
                             ItemOC.objects.create(
                                 orden_compra=oc,
                                 linea=str(data.get('linea', 1))[:50],
@@ -389,6 +396,7 @@ def oc_create(request):
                                 cantidad=c,
                                 unidad=str(data.get('uom', 'EA'))[:20],
                                 uom=str(data.get('uom', 'EA'))[:100],
+                                peso_unitario_kg=peso_val,
                                 precio_unitario=pu,
                                 precio_total=pt,
                                 fecha_entrega=fe
@@ -1028,6 +1036,19 @@ def add_packing_item(request, numero_oc, entrega_id):
         if form.is_valid():
             packing_item = form.save(commit=False)
             packing_item.entrega = entrega
+            
+            # --- AUTO-POPULAR CAMPOS DESDE ItemOC SI ESTÁN VACÍOS ---
+            if packing_item.item_oc:
+                if not packing_item.diametro and packing_item.item_oc.size_code:
+                    packing_item.diametro = packing_item.item_oc.size_code
+                if not packing_item.peso_kg and packing_item.item_oc.peso_unitario_kg:
+                    packing_item.peso_kg = packing_item.item_oc.peso_unitario_kg
+                if not packing_item.modelo_soporte and packing_item.item_oc.descripcion:
+                    packing_item.modelo_soporte = packing_item.item_oc.descripcion
+                if not packing_item.unidades and packing_item.item_oc.unidad:
+                    packing_item.unidades = packing_item.item_oc.unidad
+            # --------------------------------------------------------
+            
             packing_item.save()  # triggers ItemOC.cantidad_entregada + OC % recalc
 
             registrar_trazabilidad(
@@ -2036,12 +2057,20 @@ def api_analizar_documento(request):
                 if monto_val:
                     datos['valor_total'] = monto_val
 
-            # Extraer ítems de material (BOM)
+            # Extraer ítems de material (BOM y FMR)
             items_extraidos = []
+            fmr_mode = False
+            current_fmr_item = None
+            
             lineas = texto.split('\n')
             for i, linea in enumerate(lineas):
-                if 'Item code:' in linea:
-                    match = re.search(r'Item code:\s+(\S+)\s+(\d{1,4})\s+(.+?)\s+([\d\.,]+)\s+([\d\.,]+)\s+([\d\.,]+)\s+([A-Za-z0-9\-]+)', linea)
+                linea_clean = linea.strip()
+                if not linea_clean:
+                    continue
+                
+                # --- FORMATO BARK OC (`Item code: ...`) ---
+                if 'Item code:' in linea_clean:
+                    match = re.search(r'Item code:\s+(\S+)\s+(\d{1,4})\s+(.+?)\s+([\d\.,]+)\s+([\d\.,]+)\s+([\d\.,]+)\s+([A-Za-z0-9\-]+)', linea_clean)
                     if match:
                         item_code = match.group(1)
                         linea_num = match.group(2).lstrip('0') or '1'
@@ -2075,6 +2104,51 @@ def api_analizar_documento(request):
                             'precio_total': precio_t,
                             'fecha_entrega': fecha_e_raw
                         })
+                    continue
+
+                # --- FORMATO FMR (COMMODITY CODE) ---
+                match_fmr = re.match(r'^([A-Z0-9\-]{5,})\s+(\d+)\s+([\d\.,]+)\s+([A-Za-z]{2,5}\.?)\s+(.*)$', linea_clean)
+                if match_fmr and len(match_fmr.group(1)) > 5:
+                    if current_fmr_item:
+                        items_extraidos.append(current_fmr_item)
+                    
+                    fmr_mode = True
+                    current_fmr_item = {
+                        'item_code': match_fmr.group(1),
+                        'codigo': match_fmr.group(1),
+                        'linea': match_fmr.group(2),
+                        'cantidad': match_fmr.group(3).replace(',', ''),
+                        'uom': match_fmr.group(4),
+                        'descripcion_raw': match_fmr.group(5),
+                    }
+                elif fmr_mode and current_fmr_item:
+                    # Acumular la descripción
+                    if not (linea_clean.startswith('COMMODITY CODE') or linea_clean.startswith('ITEM ')):
+                        current_fmr_item['descripcion_raw'] += " " + linea_clean
+
+            if current_fmr_item:
+                items_extraidos.append(current_fmr_item)
+                
+            # Procesar raw descripciones de FMR
+            for it in items_extraidos:
+                if 'descripcion_raw' in it:
+                    raw = it['descripcion_raw']
+                    peso_match = re.search(r'Peso.*?([\d\.,]+)\s*kg', raw, re.IGNORECASE)
+                    peso = peso_match.group(1).replace(',', '.') if peso_match else ""
+                    
+                    size_match = re.search(r'([\d\.,]+(?:/\d+)?\s*["\']|[\d\.,]+\s*IN)', raw, re.IGNORECASE)
+                    size = size_match.group(1).strip() if size_match else ""
+                    
+                    desc = re.sub(r'Peso.*?([\d\.,]+)\s*kg', '', raw, flags=re.IGNORECASE)
+                    desc = re.sub(r'aproximado\s*=', '', desc, flags=re.IGNORECASE).strip()
+                    desc = re.sub(r'\s+', ' ', desc).strip()
+                    
+                    it['descripcion'] = desc[:255] if desc else f"Item {it['item_code']}"
+                    if peso:
+                        it['peso_unitario_kg'] = peso
+                    if size:
+                        it['size_code'] = size
+                    del it['descripcion_raw']
             
             datos['items'] = items_extraidos
                     
@@ -2173,8 +2247,8 @@ def cotizacion_pdf(request, cotizacion_id):
         "<b>MAESTRANZA BARK SPA</b><br/>"
         "Giro: Maestranza y Fabricaciones Metálicas<br/>"
         "RUT: 77.XXX.XXX-X<br/>"
-        "Dirección: Camino F-30-E N° 1200, Quintero, Valparaíso<br/>"
-        "Fono: +56 9 1234 5678 | contacto@maestranzabark.cl"
+        "Dirección: Agustinas 1442, Calama<br/>"
+        "Fono: +56 9 4016 0112 | administracion@maestranzabark.cl"
     )
     cot_txt = (
         f"<font color='#0d1220'><b>COTIZACIÓN</b></font><br/>"
@@ -2385,7 +2459,7 @@ def _build_guia_story(guia, styles, body_style, bold_body, sub_style, items_hdr_
         "<b>MAESTRANZA BARK SPA</b><br/>"
         "Giro: Maestranza y Fabricaciones Metálicas<br/>"
         "RUT: 77.XXX.XXX-X<br/>"
-        "Dirección: Camino F-30-E N° 1200, Quintero, Valparaíso"
+        "Dirección: Agustinas 1442, Calama"
     )
     guia_txt = f"<b>GUÍA DE DESPACHO<br/>N° {guia.numero_guia}</b>"
     title_style = ParagraphStyle('GT', parent=styles['Normal'], fontName='Helvetica-Bold',

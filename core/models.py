@@ -699,9 +699,9 @@ class PackingList(models.Model):
     fecha_envio = models.DateField(verbose_name="Fecha de Envío")
     nombre_cliente = models.CharField(max_length=255, verbose_name="Nombre del Cliente")
     empresa = models.CharField(max_length=255, default="MAESTRANZA BARK SPA", verbose_name="Empresa")
-    direccion = models.CharField(max_length=255, default="Camino F-30-E N° 1200, Quintero, Valparaíso", verbose_name="Dirección")
-    correo = models.CharField(max_length=255, default="contacto@maestranzabark.cl", verbose_name="Correo")
-    telefono = models.CharField(max_length=255, default="+56 9 1234 5678", verbose_name="Teléfono")
+    direccion = models.CharField(max_length=255, default="Agustinas 1442", verbose_name="Dirección")
+    correo = models.CharField(max_length=255, default="administracion@maestranzabark.cl", verbose_name="Correo")
+    telefono = models.CharField(max_length=255, default="+56 9 4016 0112", verbose_name="Teléfono")
     tipo_medida = models.CharField(
         max_length=20,
         choices=TIPO_MEDIDA_CHOICES,
