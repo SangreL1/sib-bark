@@ -1395,9 +1395,13 @@ def generate_packing_list_pdf(request, packing_list_id):
          
     for index, item in enumerate(items, start=1):
         desc = item.item_oc.descripcion
-        largo = str(item.largo_mt) if item.largo_mt is not None else "N/A"
-        ancho = str(item.ancho_mt) if item.ancho_mt is not None else "N/A"
-        diametro = str(item.medida_1) if item.medida_1 is not None else (item.diametro or 'N/A')
+        def format_meas(val):
+            if val is None: return "N/A"
+            return str(int(val)) if val == int(val) else str(val)
+
+        largo = format_meas(item.largo_mt)
+        ancho = format_meas(item.ancho_mt)
+        diametro = format_meas(item.medida_1) if item.medida_1 is not None else (item.diametro or 'N/A')
         
         table_data.append([
             Paragraph(f"{index}. {desc}", body_style),
@@ -1755,13 +1759,17 @@ def export_packing_list_excel(request, packing_list_id):
     row_num = 17
     alt_colors = ['FFFFFF', 'F2F7FB']
     if items:
+        def format_meas_ex(val):
+            if val is None: return '—'
+            return str(int(val)) if val == int(val) else str(val)
+
         for idx, item in enumerate(items, start=1):
             bg = alt_colors[idx % 2]
             row_vals = [
                 idx,
-                str(item.largo_mt) if item.largo_mt is not None else '—',
-                str(item.ancho_mt) if item.ancho_mt is not None else '—',
-                str(item.medida_1) if item.medida_1 is not None else (item.diametro or '—'),
+                format_meas_ex(item.largo_mt),
+                format_meas_ex(item.ancho_mt),
+                format_meas_ex(item.medida_1) if item.medida_1 is not None else (item.diametro or '—'),
                 (item.estado_item or 'ENTREGADO').upper(),
                 str(int(float(item.cantidad or 1)))
             ]
