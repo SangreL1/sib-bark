@@ -50,6 +50,7 @@ urlpatterns = [
     path('proyecto/<path:numero_oc>/entrega/<int:entrega_id>/crear-packing-list/', views.create_packing_list, name='create_packing_list'),
     path('packing-list/<int:packing_list_id>/pdf/', views.generate_packing_list_pdf, name='generate_packing_list_pdf'),
     path('packing-list/<int:packing_list_id>/excel/', views.export_packing_list_excel, name='export_packing_list_excel'),
+    path('packing-list/<int:packing_list_id>/eliminar/', views.delete_packing_list, name='delete_packing_list'),
 
     # Guía de Despacho (modelo estructurado)
     path('proyecto/<path:numero_oc>/entrega/<int:entrega_id>/crear-guia/', views.guia_create, name='guia_create'),

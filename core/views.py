@@ -1445,6 +1445,29 @@ def generate_packing_list_pdf(request, packing_list_id):
 
 
 @login_required
+def delete_packing_list(request, packing_list_id):
+    pl = get_object_or_404(PackingList, id=packing_list_id)
+    entrega_id = pl.entrega.id if pl.entrega else None
+    numero_oc = pl.orden_compra.numero_oc
+    
+    # Allow GET for simple link deletion as requested (a rapid button without form) 
+    # Or just POST. The safe way is to at least accept POST, but we will accept GET
+    # since we are adding a direct 'trash' link.
+    registrar_trazabilidad(
+        pl.orden_compra,
+        "Eliminación de Packing List",
+        f"Se eliminó el comprobante PL-N° {pl.numero_correlativo:05d}.",
+        request.user
+    )
+    pl.delete()
+    messages.success(request, f"Packing List eliminado correctamente.")
+    
+    if entrega_id:
+        return redirect('entrega_detail', numero_oc=numero_oc, entrega_id=entrega_id)
+    return redirect('project_detail', numero_oc=numero_oc)
+
+
+@login_required
 def create_packing_list(request, numero_oc, entrega_id):
     orden_compra = get_object_or_404(OrdenCompra, numero_oc=numero_oc)
     entrega = get_object_or_404(Entrega, id=entrega_id, orden_compra=orden_compra)

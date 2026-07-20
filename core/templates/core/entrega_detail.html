@@ -74,6 +74,9 @@
                   <a href="{% url 'export_packing_list_excel' pl.id %}" class="btn btn-outline-success btn-sm d-inline-flex align-items-center gap-1" style="min-height:36px;" title="Descargar Excel">
                     <i data-lucide="table" style="width:14px;height:14px;"></i> Excel
                   </a>
+                  <a href="{% url 'delete_packing_list' pl.id %}" class="btn btn-outline-danger btn-sm d-inline-flex align-items-center gap-1" style="min-height:36px;" title="Eliminar Packing List" onclick="return confirm('¿Estás seguro de que deseas eliminar este formato de Packing List?');">
+                    <i data-lucide="trash-2" style="width:14px;height:14px;"></i>
+                  </a>
                 </div>
               </div>
               {% endfor %}
