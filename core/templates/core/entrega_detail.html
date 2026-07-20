@@ -124,14 +124,7 @@
               <label class="form-label small text-muted">Fecha Envío</label>
               <input type="date" name="fecha_envio" value="{{ entrega.fecha_entrega|date:'Y-m-d' }}" class="form-control bg-black text-white border-secondary border-opacity-50 btn-sm">
             </div>
-            <div class="col-12">
-              <label class="form-label small text-muted">Formato de Columnas de Medida</label>
-              <select name="tipo_medida" class="form-select bg-black text-white border-secondary border-opacity-50 btn-sm">
-                <option value="diametro_alto">Ø / Alto</option>
-                <option value="largo_alto">L / H</option>
-              </select>
-            </div>
-            <div class="col-12 text-end mt-3">
+            <div class="col-12 mt-3">
               <button type="submit" class="btn btn-info w-100 d-inline-flex align-items-center justify-content-center gap-1">
                 <i data-lucide="plus-circle" style="width:16px;height:16px;"></i> Emitir Packing List Correlativo
               </button>
@@ -157,7 +150,6 @@
               <tr class="table-black">
                 <th>Descripción Ítem</th>
                 <th>Bulto / Pallet</th>
-                <th>Soporte</th>
                 <th class="text-center">Ø</th>
                 <th class="text-center">Estado</th>
                 <th class="text-center">Cant.</th>
@@ -175,7 +167,6 @@
                     {% endif %}
                   </td>
                   <td>{{ item.numero_bulto|default:"—" }}</td>
-                  <td>{{ item.modelo_soporte|default:"—" }}</td>
                   <td class="text-center">{{ item.diametro|default:"—" }}</td>
                   <td class="text-center">{{ item.estado_item|default:"—" }}</td>
                   <td class="text-center font-monospace">{{ item.cantidad|floatformat:0 }}</td>
@@ -223,10 +214,6 @@
             </div>
 
             <!-- Nuevos campos para el reporte de Calidad/Packing List -->
-            <div class="col-md-4 col-sm-6">
-              <label class="form-label">Modelo Soporte</label>
-              {{ form.modelo_soporte }}
-            </div>
             <div class="col-md-4 col-sm-6">
               <label class="form-label">Diámetro / Ø</label>
               {{ form.diametro }}

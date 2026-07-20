@@ -1380,10 +1380,8 @@ def generate_packing_list_pdf(request, packing_list_id):
     story.append(cliente_table)
     story.append(Spacer(1, 15))
     
-    # 3. Datos de la tabla de Ítems — cabeceras actualizadas: Largo, Ancho, Diametro
     table_data = [[
         Paragraph('Ítem / Descripción', header_style),
-        Paragraph('Modelo Soporte', header_style),
         Paragraph('Largo', header_style),
         Paragraph('Ancho', header_style),
         Paragraph('Ø', header_style),
@@ -1403,7 +1401,6 @@ def generate_packing_list_pdf(request, packing_list_id):
         
         table_data.append([
             Paragraph(f"{index}. {desc}", body_style),
-            Paragraph(item.modelo_soporte or "N/A", body_style),
             Paragraph(largo, body_style),
             Paragraph(ancho, body_style),
             Paragraph(diametro, body_style),
@@ -1412,9 +1409,9 @@ def generate_packing_list_pdf(request, packing_list_id):
         ])
         
     if not items:
-        table_data.append([Paragraph("No se encontraron ítems en esta entrega.", body_style), "", "", "", "", "", ""])
+        table_data.append([Paragraph("No se encontraron ítems en esta entrega.", body_style), "", "", "", "", ""])
         
-    items_table = Table(table_data, colWidths=[170, 100, 50, 50, 50, 55, 55])
+    items_table = Table(table_data, colWidths=[200, 60, 60, 60, 60, 60])
     items_table.setStyle(TableStyle([
         ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#0d1220')),
         ('ALIGN', (0,0), (-1,-1), 'LEFT'),
@@ -1716,8 +1713,8 @@ def export_packing_list_excel(request, packing_list_id):
     ws.row_dimensions[15].height = 10
 
     # ── FILA 16: Encabezados de tabla ─────────────────────────────────────────
-    headers = ['ITEM', 'MODELO SOPORTE', 'LARGO', 'ANCHO', 'Ø', 'ESTADO', 'UNIDADES']
-    col_map = [1, 2, 3, 4, 5, 6, 7]
+    headers = ['ITEM', 'LARGO', 'ANCHO', 'Ø', 'ESTADO', 'UNIDADES']
+    col_map = [1, 2, 3, 4, 5, 6]
     hdr_bg = '1a3a5c'
     for i, h in enumerate(headers):
         c = ws.cell(row=16, column=col_map[i], value=h)
@@ -1739,7 +1736,6 @@ def export_packing_list_excel(request, packing_list_id):
             bg = alt_colors[idx % 2]
             row_vals = [
                 idx,
-                item.modelo_soporte or item.item_oc.descripcion,
                 str(item.largo_mt) if item.largo_mt is not None else '—',
                 str(item.ancho_mt) if item.ancho_mt is not None else '—',
                 str(item.medida_1) if item.medida_1 is not None else (item.diametro or '—'),
