@@ -158,9 +158,9 @@
                 <th>Descripción Ítem</th>
                 <th>Bulto / Pallet</th>
                 <th>Soporte</th>
-                <th class="text-center">Ø / Alto</th>
+                <th class="text-center">Ø</th>
                 <th class="text-center">Estado</th>
-                <th class="text-center">Cant. / Unid.</th>
+                <th class="text-center">Cant.</th>
                 <th>Masa (kg)</th>
                 <th>Acción</th>
               </tr>
@@ -176,9 +176,9 @@
                   </td>
                   <td>{{ item.numero_bulto|default:"—" }}</td>
                   <td>{{ item.modelo_soporte|default:"—" }}</td>
-                  <td class="text-center">{{ item.diametro|default:"—" }} / {{ item.alto_item|default:"—" }}</td>
+                  <td class="text-center">{{ item.diametro|default:"—" }}</td>
                   <td class="text-center">{{ item.estado_item|default:"—" }}</td>
-                  <td class="text-center font-monospace">{{ item.cantidad|floatformat:0 }} ({{ item.unidades|default:"EA" }})</td>
+                  <td class="text-center font-monospace">{{ item.cantidad|floatformat:0 }}</td>
                   <td class="font-monospace">{{ item.peso_kg|default:"0.00" }} kg</td>
                   <td>
                     <a href="{% url 'delete_packing_item' orden_compra.numero_oc item.id %}" class="btn btn-sm btn-clear-danger text-danger p-1" style="min-height:30px;">
@@ -231,17 +231,9 @@
               <label class="form-label">Diámetro / Ø</label>
               {{ form.diametro }}
             </div>
-            <div class="col-md-4 col-sm-6">
-              <label class="form-label">Alto Ítem</label>
-              {{ form.alto_item }}
-            </div>
             <div class="col-md-3 col-sm-6">
               <label class="form-label">Estado de la Pieza</label>
               {{ form.estado_item }}
-            </div>
-            <div class="col-md-3 col-sm-6">
-              <label class="form-label">Unidades (etiqueta)</label>
-              {{ form.unidades }}
             </div>
 
             <!-- Dimensiones Físicas y Peso -->

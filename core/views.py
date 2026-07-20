@@ -1380,14 +1380,13 @@ def generate_packing_list_pdf(request, packing_list_id):
     story.append(cliente_table)
     story.append(Spacer(1, 15))
     
-    # 3. Datos de la tabla de Ítems — cabeceras según tipo_medida
-    col_m1 = pl.col_medida_1  # 'Ø' o 'L'
-    col_m2 = pl.col_medida_2  # 'ALTO' o 'H'
+    # 3. Datos de la tabla de Ítems — cabeceras actualizadas: Largo, Ancho, Diametro
     table_data = [[
         Paragraph('Ítem / Descripción', header_style),
         Paragraph('Modelo Soporte', header_style),
-        Paragraph(col_m1, header_style),
-        Paragraph(col_m2, header_style),
+        Paragraph('Largo', header_style),
+        Paragraph('Ancho', header_style),
+        Paragraph('Ø', header_style),
         Paragraph('Estado', header_style),
         Paragraph('Unidades', header_style)
     ]]
@@ -1398,22 +1397,24 @@ def generate_packing_list_pdf(request, packing_list_id):
          
     for index, item in enumerate(items, start=1):
         desc = item.item_oc.descripcion
-        # Prefer numeric medida_1/medida_2; fall back to legacy text fields
-        m1 = str(item.medida_1) if item.medida_1 is not None else (item.diametro or 'N/A')
-        m2 = str(item.medida_2) if item.medida_2 is not None else (item.alto_item or 'N/A')
+        largo = str(item.largo_mt) if item.largo_mt is not None else "N/A"
+        ancho = str(item.ancho_mt) if item.ancho_mt is not None else "N/A"
+        diametro = str(item.medida_1) if item.medida_1 is not None else (item.diametro or 'N/A')
+        
         table_data.append([
             Paragraph(f"{index}. {desc}", body_style),
             Paragraph(item.modelo_soporte or "N/A", body_style),
-            Paragraph(m1, body_style),
-            Paragraph(m2, body_style),
+            Paragraph(largo, body_style),
+            Paragraph(ancho, body_style),
+            Paragraph(diametro, body_style),
             Paragraph(item.estado_item or "N/A", body_style),
-            Paragraph(item.unidades or str(int(item.cantidad)), body_style)
+            Paragraph(str(int(item.cantidad)), body_style)
         ])
         
     if not items:
-        table_data.append([Paragraph("No se encontraron ítems en esta entrega.", body_style), "", "", "", "", ""])
+        table_data.append([Paragraph("No se encontraron ítems en esta entrega.", body_style), "", "", "", "", "", ""])
         
-    items_table = Table(table_data, colWidths=[180, 110, 60, 60, 60, 60])
+    items_table = Table(table_data, colWidths=[170, 100, 50, 50, 50, 55, 55])
     items_table.setStyle(TableStyle([
         ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#0d1220')),
         ('ALIGN', (0,0), (-1,-1), 'LEFT'),
@@ -1715,8 +1716,8 @@ def export_packing_list_excel(request, packing_list_id):
     ws.row_dimensions[15].height = 10
 
     # ── FILA 16: Encabezados de tabla ─────────────────────────────────────────
-    headers = ['ITEM', 'MODELO SOPORTE', 'Ø', 'ALTO', 'ESTADO', 'UNIDADES']
-    col_map = [1, 2, 3, 4, 5, 6]
+    headers = ['ITEM', 'MODELO SOPORTE', 'LARGO', 'ANCHO', 'Ø', 'ESTADO', 'UNIDADES']
+    col_map = [1, 2, 3, 4, 5, 6, 7]
     hdr_bg = '1a3a5c'
     for i, h in enumerate(headers):
         c = ws.cell(row=16, column=col_map[i], value=h)
@@ -1739,10 +1740,11 @@ def export_packing_list_excel(request, packing_list_id):
             row_vals = [
                 idx,
                 item.modelo_soporte or item.item_oc.descripcion,
-                item.diametro or '—',
-                item.alto_item or '—',
+                str(item.largo_mt) if item.largo_mt is not None else '—',
+                str(item.ancho_mt) if item.ancho_mt is not None else '—',
+                str(item.medida_1) if item.medida_1 is not None else (item.diametro or '—'),
                 (item.estado_item or 'ENTREGADO').upper(),
-                item.unidades or str(int(float(item.cantidad or 1)))
+                str(int(float(item.cantidad or 1)))
             ]
             for ci, val in enumerate(row_vals):
                 c = ws.cell(row=row_num, column=col_map[ci], value=val)

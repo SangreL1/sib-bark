@@ -189,7 +189,7 @@ class PackingListItemForm(forms.ModelForm):
             'item_oc', 'cantidad', 'numero_bulto',
             'largo_mt', 'ancho_mt', 'alto_mt', 'peso_kg',
             'modelo_soporte', 'medida_1', 'medida_2',
-            'diametro', 'alto_item', 'estado_item', 'unidades',
+            'diametro', 'alto_item', 'estado_item',
         ]
         widgets = {
             'item_oc': forms.Select(attrs={'class': 'form-control'}),
@@ -205,7 +205,6 @@ class PackingListItemForm(forms.ModelForm):
             'diametro': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Diámetro / Ø (texto)'}),
             'alto_item': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Alto (texto)'}),
             'estado_item': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Estado'}),
-            'unidades': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Unidades'}),
         }
         labels = {
             'medida_1': 'Medida 1 (Ø o L)',
