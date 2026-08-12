@@ -13,6 +13,13 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 from pathlib import Path
 import os
 
+# Cargar variables desde archivo .env si existe (para desarrollo local)
+try:
+    from dotenv import load_dotenv
+    load_dotenv(Path(__file__).resolve().parent.parent / '.env')
+except ImportError:
+    pass  # python-dotenv no está instalado, se usan las variables del SO
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -50,6 +57,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'core.middleware.NoCacheMiddleware',  # 🔒 Ciberseguridad: bloquea botón atrás tras logout
 ]
 
 ROOT_URLCONF = 'bark_project.urls'
@@ -139,17 +147,39 @@ LOGIN_REDIRECT_URL = '/'
 LOGOUT_REDIRECT_URL = '/login/'
 
 # ─────────────────────────────────────────────────────────────────────────────
-# CORREO ELECTRONICO — Alertas de semaforo de Plazo
-# Las credenciales se leen desde variables de entorno para no hardcodearlas.
-# Para desarrollo puedes crear un archivo .env o definirlas en el SO.
+# CIBERSEGURIDAD — Sesiones seguras
 # ─────────────────────────────────────────────────────────────────────────────
-EMAIL_BACKEND  = os.environ.get('EMAIL_BACKEND', 'django.core.mail.backends.console.EmailBackend')
+# La sesión expira al cerrar el navegador
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True
+# La sesión expira tras 8 horas de inactividad (28800 segundos)
+SESSION_COOKIE_AGE = 28800
+# Solo enviar cookie de sesión por HTTPS en producción
+SESSION_COOKIE_SECURE = not DEBUG
+# Protección contra XSS: JS no puede leer la cookie de sesión
+SESSION_COOKIE_HTTPONLY = True
+# Protección CSRF
+CSRF_COOKIE_HTTPONLY = True
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CORREO ELECTRONICO
+# Las credenciales se leen desde variables de entorno / archivo .env
+# Para desarrollo: crea bark_project/.env con EMAIL_HOST_USER y EMAIL_HOST_PASSWORD
+# ─────────────────────────────────────────────────────────────────────────────
+_email_user = os.environ.get('EMAIL_HOST_USER', '')
+_email_pass = os.environ.get('EMAIL_HOST_PASSWORD', '')
+
+# Si hay credenciales configuradas, usar SMTP real. Si no, imprimir en consola.
+if _email_user and _email_pass:
+    EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+else:
+    EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND', 'django.core.mail.backends.console.EmailBackend')
+
 EMAIL_HOST     = os.environ.get('EMAIL_HOST', 'smtp.gmail.com')
 EMAIL_PORT     = int(os.environ.get('EMAIL_PORT', '587'))
 EMAIL_USE_TLS  = os.environ.get('EMAIL_USE_TLS', 'True') == 'True'
-EMAIL_HOST_USER     = os.environ.get('EMAIL_HOST_USER', '')
-EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
-DEFAULT_FROM_EMAIL  = os.environ.get('DEFAULT_FROM_EMAIL', 'SIB Bark <no-reply@bark.cl>')
+EMAIL_HOST_USER     = _email_user
+EMAIL_HOST_PASSWORD = _email_pass
+DEFAULT_FROM_EMAIL  = os.environ.get('DEFAULT_FROM_EMAIL', f'Maestranza Bark SPA <{_email_user or "no-reply@bark.cl"}>')
 
 # Lista de destinatarios para alertas de plazo vencido/proximo.
 # Se puede sobreescribir via variable de entorno RESPONSABLES_EMAIL="a@x.com,b@x.com"

@@ -281,3 +281,82 @@ class BarkModelsTestCase(TestCase):
         self.assertRedirects(res_del, detail_url)
         self.assertEqual(ManoDeObra.objects.filter(id=mo.id).count(), 0)
 
+    def test_packing_list_weight_and_edit(self):
+        """Verify packing list item creation, weight auto-calculation, editing, and report generation."""
+        from django.contrib.auth import get_user_model
+        from .models import ItemOC, PackingListItem, PackingList
+        
+        User = get_user_model()
+        user = User.objects.create_user(username='packingtester', password='password')
+        self.client.force_login(user)
+
+        # 1. Create item_oc with unit weight
+        item_oc = ItemOC.objects.create(
+            orden_compra=self.oc,
+            linea="001",
+            codigo="ITEM-KG-01",
+            descripcion="Estructura Metálica A36",
+            unidad="EA",
+            peso_unitario_kg=Decimal("15.50"),
+            cantidad=10,
+            precio_unitario=Decimal("100000")
+        )
+
+        delivery = Entrega.objects.create(
+            orden_compra=self.oc,
+            fecha_entrega=date(2026, 8, 1),
+            guia_despacho="GD-1001",
+            estado="Entregado"
+        )
+
+        pl = PackingList.objects.create(
+            orden_compra=self.oc,
+            entrega=delivery,
+            nombre_cliente=self.oc.cliente,
+            fecha_orden=date(2026, 8, 1),
+            fecha_envio=date(2026, 8, 2)
+        )
+
+        # 2. Add packing item without explicit peso_kg -> should auto calculate 15.50 * 2 = 31.00 kg
+        url_add_pi = reverse('add_packing_item', kwargs={'numero_oc': self.oc.numero_oc, 'entrega_id': delivery.id})
+        data_add = {
+            'item_oc': item_oc.id,
+            'cantidad': '2',
+            'numero_bulto': 'PALLET-01'
+        }
+        res_add = self.client.post(url_add_pi, data_add)
+        self.assertEqual(res_add.status_code, 302)
+
+        pi = PackingListItem.objects.filter(entrega=delivery).first()
+        self.assertIsNotNone(pi)
+        self.assertEqual(pi.peso_kg, Decimal("31.00"))
+
+        # 3. Edit packing item -> change peso_kg manually to 35.50
+        url_edit_pi = reverse('edit_packing_item', kwargs={'numero_oc': self.oc.numero_oc, 'item_id': pi.id})
+        data_edit = {
+            'item_oc': item_oc.id,
+            'cantidad': '2',
+            'numero_bulto': 'PALLET-01-EDIT',
+            'peso_kg': '35.50',
+            'diametro': 'DN50',
+            'estado_item': 'ENTREGADO'
+        }
+        res_edit = self.client.post(url_edit_pi, data_edit)
+        self.assertEqual(res_edit.status_code, 302)
+
+        pi.refresh_from_db()
+        self.assertEqual(pi.peso_kg, Decimal("35.50"))
+        self.assertEqual(pi.numero_bulto, 'PALLET-01-EDIT')
+
+        # 4. Export PDF & Excel report testing
+        url_pdf = reverse('generate_packing_list_pdf', kwargs={'packing_list_id': pl.id})
+        res_pdf = self.client.get(url_pdf)
+        self.assertEqual(res_pdf.status_code, 200)
+        self.assertEqual(res_pdf['Content-Type'], 'application/pdf')
+
+        url_excel = reverse('export_packing_list_excel', kwargs={'packing_list_id': pl.id})
+        res_excel = self.client.get(url_excel)
+        self.assertEqual(res_excel.status_code, 200)
+        self.assertIn('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', res_excel['Content-Type'])
+
+

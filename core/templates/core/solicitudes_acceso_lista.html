@@ -1,0 +1,434 @@
+{% extends 'core/base.html' %}
+{% load static %}
+{% block title %}Solicitudes de Acceso — Portal OC Clientes{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+  <a href="{% url 'oc_clientes_bandeja' %}" style="color:var(--blue);text-decoration:none;font-size:13px;">
+    <i data-lucide="arrow-left" style="width:14px;height:14px;"></i> Volver a Bandeja
+  </a>
+</div>
+
+<div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+  <div>
+    <h1 style="font-size:1.3rem;font-weight:700;margin:0;">
+      <i data-lucide="users" style="width:20px;height:20px;margin-right:8px;color:var(--blue);"></i>
+      Solicitudes de Acceso al Portal
+    </h1>
+    <p style="color:var(--txt-3);font-size:13px;margin:4px 0 0;">Empresas que solicitaron acceso para enviar OCs</p>
+  </div>
+</div>
+
+</div>
+
+<!-- Pestañas Principales (Clientes vs Staff) -->
+<ul class="nav nav-tabs mb-4" style="border-bottom-color:var(--border);">
+  <li class="nav-item">
+    <a class="nav-link {% if request.GET.tab != 'staff' %}active{% endif %}" href="?tab=clientes&estado=pendiente"
+       style="{% if request.GET.tab != 'staff' %}background:var(--card);border-color:var(--border);border-bottom-color:transparent;color:var(--txt-1);font-weight:600;{% else %}color:var(--txt-3);{% endif %}">
+       🏢 Proveedores / Clientes
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link {% if request.GET.tab == 'staff' %}active{% endif %}" href="?tab=staff&staff_estado=pendiente"
+       style="{% if request.GET.tab == 'staff' %}background:var(--card);border-color:var(--border);border-bottom-color:transparent;color:var(--txt-1);font-weight:600;{% else %}color:var(--txt-3);{% endif %}">
+       💼 Personal Bark (Staff)
+    </a>
+  </li>
+</ul>
+
+{% if request.GET.tab != 'staff' %}
+<!-- Tabs de estado Clientes -->
+<div class="mb-3 d-flex gap-2 flex-wrap">
+  <a href="?estado=pendiente" class="btn btn-sm {% if filtro == 'pendiente' %}btn-warning{% else %}btn-outline-warning{% endif %}">
+    🟡 Pendientes ({{ contadores.pendiente }})
+  </a>
+  <a href="?estado=aprobado" class="btn btn-sm {% if filtro == 'aprobado' %}btn-success{% else %}btn-outline-success{% endif %}">
+    🟢 Aprobados ({{ contadores.aprobado }})
+  </a>
+  <a href="?estado=rechazado" class="btn btn-sm {% if filtro == 'rechazado' %}btn-danger{% else %}btn-outline-danger{% endif %}">
+    🔴 Rechazados ({{ contadores.rechazado }})
+  </a>
+</div>
+
+<div class="card" style="border:1px solid var(--border);background:var(--card);">
+  <div class="table-responsive">
+    <table class="table table-hover mb-0" style="font-size:13.5px;">
+      <thead>
+        <tr style="border-bottom:1px solid var(--border);">
+          <th style="padding:12px 16px;">Empresa / Razón Social</th>
+          <th>RUT</th>
+          <th>Contacto</th>
+          <th>Email</th>
+          <th>Teléfono</th>
+          <th>Solicitud</th>
+          <th style="text-align:right;padding-right:16px;">Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for perfil in perfiles %}
+        <tr>
+          <td style="padding:12px 16px;font-weight:600;">{{ perfil.razon_social }}</td>
+          <td style="font-family:monospace;">{{ perfil.rut }}</td>
+          <td>{{ perfil.user.first_name|default:"—" }}</td>
+          <td style="font-size:12px;">{{ perfil.user.email }}</td>
+          <td>{{ perfil.telefono|default:"—" }}</td>
+          <td style="font-size:12px;color:var(--txt-3);">{{ perfil.fecha_solicitud|date:"d/m/Y H:i" }}</td>
+          <td style="text-align:right;padding-right:16px;">
+            {% if perfil.estado_aprobacion == 'pendiente' %}
+            <!-- Aprobar -->
+            <form method="post" action="{% url 'aprobar_cliente' perfil.id %}" class="d-inline">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-sm btn-success" style="padding:4px 12px;"
+                      onclick="return confirm('¿Aprobar el acceso de {{ perfil.razon_social }}? Se enviará email de confirmación al cliente.')">
+                <i data-lucide="check" style="width:13px;height:13px;"></i> Aprobar
+              </button>
+            </form>
+            <!-- Rechazar -->
+            <button type="button" class="btn btn-sm btn-danger ms-1" style="padding:4px 12px;"
+                    data-bs-toggle="modal" data-bs-target="#modalRechazarAcceso{{ perfil.id }}">
+              <i data-lucide="x" style="width:13px;height:13px;"></i> Rechazar
+            </button>
+            {% elif perfil.estado_aprobacion == 'aprobado' %}
+            <div class="d-flex align-items-center justify-content-end gap-1">
+              {% if not perfil.user.is_active %}
+                <span class="badge bg-danger">BLOQUEADO</span>
+              {% endif %}
+              <!-- Desplegable de acciones -->
+              <div class="dropdown">
+                <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="dropdown" style="padding:4px 8px;">
+                  ...
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end" style="font-size:13px;background:var(--card);border:1px solid var(--border);">
+                  <li>
+                    <a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#modalEditar{{ perfil.id }}" style="color:var(--txt-1);">
+                      <i data-lucide="edit-2" style="width:14px;height:14px;margin-right:6px;"></i> Editar Datos
+                    </a>
+                  </li>
+                  <li>
+                    <form method="post" action="{% url 'bloquear_cliente' perfil.id %}">
+                      {% csrf_token %}
+                      <button type="submit" class="dropdown-item" style="color:var(--txt-1);">
+                        {% if perfil.user.is_active %}
+                          <i data-lucide="lock" style="width:14px;height:14px;margin-right:6px;"></i> Bloquear Acceso
+                        {% else %}
+                          <i data-lucide="unlock" style="width:14px;height:14px;margin-right:6px;"></i> Desbloquear
+                        {% endif %}
+                      </button>
+                    </form>
+                  </li>
+                  <li><hr class="dropdown-divider" style="border-color:var(--border);"></li>
+                  <li>
+                    <a class="dropdown-item text-danger" href="#" data-bs-toggle="modal" data-bs-target="#modalEliminar{{ perfil.id }}">
+                      <i data-lucide="trash-2" style="width:14px;height:14px;margin-right:6px;"></i> Eliminar Definitivamente
+                    </a>
+                  </li>
+                </ul>
+              </div>
+            </div>
+            {% else %}
+            <span style="color:#ef4444;font-size:12px;">❌ Rechazado el {{ perfil.fecha_decision|date:"d/m/Y" }}</span>
+            <div class="d-flex align-items-center justify-content-end gap-1 mt-1">
+              <a href="#" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#modalEliminar{{ perfil.id }}" style="padding:2px 6px;font-size:11px;">
+                Eliminar
+              </a>
+            </div>
+            {% if perfil.observaciones_rechazo %}
+            <div style="font-size:11px;color:var(--txt-3);max-width:200px;">{{ perfil.observaciones_rechazo|truncatechars:60 }}</div>
+            {% endif %}
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="7" style="text-align:center;padding:40px;color:var(--txt-3);">
+            <i data-lucide="user-check" style="width:32px;height:32px;display:block;margin:0 auto 8px;"></i>
+            No hay solicitudes {{ filtro }} en este momento.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Modales rechazo de acceso -->
+<!-- Modales de rechazo -->
+{% for perfil in perfiles %}
+{% if perfil.estado_aprobacion == 'pendiente' %}
+<div class="modal fade" id="modalRechazarAcceso{{ perfil.id }}" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content" style="background:var(--card);border:1px solid var(--border);">
+      <div class="modal-header" style="border-bottom:1px solid var(--border);">
+        <h5 class="modal-title">Rechazar acceso — {{ perfil.razon_social }}</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="post" action="{% url 'rechazar_cliente' perfil.id %}">
+        {% csrf_token %}
+        <div class="modal-body">
+          <p style="color:var(--txt-2);">El cliente <strong>{{ perfil.user.email }}</strong> recibirá un email con el motivo del rechazo.</p>
+          <label class="form-label">Motivo del rechazo</label>
+          <textarea name="motivo" class="form-control" rows="3"
+                    placeholder="Ej: El RUT no coincide con la razón social, empresa no registrada en nuestro sistema, etc."></textarea>
+        </div>
+        <div class="modal-footer" style="border-top:1px solid var(--border);">
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-sm btn-danger">Confirmar Rechazo</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Modal Editar -->
+<div class="modal fade" id="modalEditar{{ perfil.id }}" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content" style="background:var(--card);border:1px solid var(--border);">
+      <div class="modal-header" style="border-bottom:1px solid var(--border);">
+        <h5 class="modal-title">Editar Cliente: {{ perfil.razon_social }}</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="post" action="{% url 'editar_cliente' perfil.id %}">
+        {% csrf_token %}
+        <div class="modal-body">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label">Usuario de Login</label>
+              <input type="text" name="username" class="form-control" value="{{ perfil.user.username }}" required>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Correo Electrónico</label>
+              <input type="email" name="email" class="form-control" value="{{ perfil.user.email }}" required>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">RUT Empresa</label>
+              <input type="text" name="rut" class="form-control" value="{{ perfil.rut }}" required>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Razón Social</label>
+              <input type="text" name="razon_social" class="form-control" value="{{ perfil.razon_social }}" required>
+            </div>
+            <div class="col-12 mt-3 pt-3 border-top" style="border-color:var(--border)!important;">
+              <label class="form-label text-warning"><i data-lucide="key" style="width:14px;height:14px;"></i> Cambiar Contraseña</label>
+              <input type="password" name="password" class="form-control" placeholder="Dejar en blanco para mantener la actual">
+              <small class="text-muted d-block mt-1">Si escribes algo aquí, la contraseña original será sobreescrita.</small>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer" style="border-top:1px solid var(--border);">
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-sm btn-primary">Guardar Cambios</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Eliminar -->
+<div class="modal fade" id="modalEliminar{{ perfil.id }}" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content" style="background:var(--card);border:1px solid var(--border);">
+      <div class="modal-header" style="border-bottom:1px solid var(--border);">
+        <h5 class="modal-title text-danger">⚠️ Eliminar Cliente</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="post" action="{% url 'eliminar_cliente' perfil.id %}">
+        {% csrf_token %}
+        <div class="modal-body">
+          <p>¿Estás seguro que deseas eliminar permanentemente a <strong>{{ perfil.razon_social }}</strong>?</p>
+          <div class="alert alert-danger" style="font-size:13px;">
+            <strong>Advertencia:</strong> Esta acción borrará todas las Órdenes de Compra históricas (OCs, PDFs subidos, etc) vinculadas a este cliente. <strong>Esta acción es irreversible.</strong>
+          </div>
+        </div>
+        <div class="modal-footer" style="border-top:1px solid var(--border);">
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-sm btn-danger">Sí, Confirmar Eliminación</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+{% endfor %}
+
+{% else %}
+<!-- ============================================== -->
+<!-- STAFF (EMPLEADOS BARK) -->
+<!-- ============================================== -->
+
+<!-- Tabs de estado Staff -->
+<div class="mb-3 d-flex gap-2 flex-wrap">
+  <a href="?tab=staff&staff_estado=pendiente" class="btn btn-sm {% if staff_estado == 'pendiente' %}btn-warning{% else %}btn-outline-warning{% endif %}">
+    🟡 En Espera ({{ staff_contadores.pendiente }})
+  </a>
+  <a href="?tab=staff&staff_estado=aprobado" class="btn btn-sm {% if staff_estado == 'aprobado' %}btn-success{% else %}btn-outline-success{% endif %}">
+    🟢 Aprobados ({{ staff_contadores.aprobado }})
+  </a>
+</div>
+
+<div class="card" style="border:1px solid var(--border);background:var(--card);">
+  <div class="table-responsive">
+    <table class="table table-hover mb-0" style="font-size:13.5px;">
+      <thead>
+        <tr style="border-bottom:1px solid var(--border);">
+          <th style="padding:12px 16px;">Nombre Completo</th>
+          <th>RUT</th>
+          <th>Usuario</th>
+          <th>Email</th>
+          <th>Fecha Registro</th>
+          <th style="text-align:right;padding-right:16px;">Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for empleado in staff_qs %}
+        <tr>
+          <td style="padding:12px 16px;font-weight:600;">{{ empleado.first_name }}</td>
+          <td>{{ empleado.last_name|default:"-" }}</td>
+          <td style="font-family:monospace;">{{ empleado.username }}</td>
+          <td style="font-size:12px;">{{ empleado.email }}</td>
+          <td style="font-size:12px;color:var(--txt-3);">{{ empleado.date_joined|date:"d/m/Y H:i" }}</td>
+          <td style="text-align:right;padding-right:16px;">
+            {% if staff_estado == 'pendiente' %}
+            <!-- Aprobar Empleado -->
+            <form method="post" action="{% url 'aprobar_staff' empleado.id %}" class="d-inline">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-sm btn-success" style="padding:4px 12px;"
+                      onclick="return confirm('¿Aprobar el acceso del empleado {{ empleado.first_name }}? Se le enviará un correo avisando que ya puede usar el sistema.')">
+                <i data-lucide="check" style="width:13px;height:13px;"></i> Aprobar
+              </button>
+            </form>
+            
+            <!-- Eliminar -->
+            <button type="button" class="btn btn-sm btn-outline-danger ms-1" style="padding:4px 12px;"
+                    data-bs-toggle="modal" data-bs-target="#modalEliminarStaff{{ empleado.id }}" title="Eliminar definitivamente">
+              <i data-lucide="trash-2" style="width:13px;height:13px;"></i> Eliminar
+            </button>
+            {% else %}
+            
+            <div class="d-flex align-items-center justify-content-end gap-1">
+              {% if empleado.is_active %}
+                <span class="badge me-2" style="background:#dcfce7;color:#166534;border:1px solid #bbf7d0;">Activo</span>
+              {% else %}
+                <span class="badge me-2" style="background:#fee2e2;color:#991b1b;border:1px solid #fecaca;">Bloqueado</span>
+              {% endif %}
+            
+              <!-- Bloquear / Desbloquear -->
+              <form method="post" action="{% url 'bloquear_staff' empleado.id %}" class="d-inline">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-sm {% if empleado.is_active %}btn-outline-warning{% else %}btn-outline-success{% endif %}" title="{% if empleado.is_active %}Bloquear Acceso{% else %}Desbloquear Acceso{% endif %}">
+                  <i data-lucide="{% if empleado.is_active %}lock{% else %}unlock{% endif %}" style="width:13px;height:13px;"></i>
+                </button>
+              </form>
+              <!-- Editar -->
+              <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#modalEditarStaff{{ empleado.id }}" title="Editar credenciales">
+                <i data-lucide="edit" style="width:13px;height:13px;"></i>
+              </button>
+              <!-- Eliminar -->
+              <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#modalEliminarStaff{{ empleado.id }}" title="Eliminar definitivamente">
+                <i data-lucide="trash-2" style="width:13px;height:13px;"></i>
+              </button>
+            </div>
+            {% endif %}
+          </td>
+        </tr>
+        
+        {% empty %}
+        <tr>
+          <td colspan="5" class="text-center py-4" style="color:var(--txt-3);">
+            No hay empleados en esta categoría.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% for empleado in staff_qs %}
+<!-- Modal Editar Staff -->
+<div class="modal fade" id="modalEditarStaff{{ empleado.id }}" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content" style="background:var(--card);border:1px solid var(--border);">
+      <div class="modal-header" style="border-bottom:1px solid var(--border);">
+        <h5 class="modal-title" style="font-weight:600;font-size:15px;">
+          <i data-lucide="edit" style="width:16px;height:16px;margin-right:6px;color:var(--blue);"></i>
+          Editar Credenciales de Empleado
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="post" action="{% url 'editar_staff' empleado.id %}">
+        {% csrf_token %}
+        <div class="modal-body">
+          <div class="row g-3">
+            <div class="col-12">
+              <label class="form-label">Nombre Completo</label>
+              <input type="text" name="first_name" class="form-control" value="{{ empleado.first_name }}" required>
+            </div>
+            
+            <div class="col-md-6">
+              <label class="form-label">RUT</label>
+              <input type="text" name="rut" class="form-control" value="{{ empleado.last_name }}" required>
+            </div>
+            
+            <div class="col-md-6">
+              <label class="form-label">Usuario</label>
+              <div class="input-group">
+                <span class="input-group-text bg-dark border-secondary"><i data-lucide="user" style="width:14px;height:14px;"></i></span>
+                <input type="text" name="username" class="form-control" value="{{ empleado.username }}" required>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Email</label>
+              <input type="email" name="email" class="form-control" value="{{ empleado.email }}" required>
+            </div>
+            
+            <div class="col-12 mt-3 pt-3 border-top" style="border-color:var(--border)!important;">
+              <label class="form-label text-warning"><i data-lucide="key" style="width:14px;height:14px;"></i> Cambiar Contraseña</label>
+              <input type="password" name="password" class="form-control" placeholder="Dejar en blanco para mantener la actual">
+              <small class="text-muted d-block mt-1">Si escribes algo aquí, la contraseña original será sobreescrita.</small>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer" style="border-top:1px solid var(--border);">
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-sm btn-primary">Guardar Cambios</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Eliminar Staff -->
+<div class="modal fade" id="modalEliminarStaff{{ empleado.id }}" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content" style="background:var(--card);border:1px solid var(--border);">
+      <div class="modal-header" style="border-bottom:1px solid var(--border);">
+        <h5 class="modal-title text-danger">⚠️ Eliminar Empleado</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="post" action="{% url 'eliminar_staff' empleado.id %}">
+        {% csrf_token %}
+        <div class="modal-body">
+          <p>¿Estás seguro que deseas eliminar permanentemente a <strong>{{ empleado.first_name }}</strong>?</p>
+          <div class="alert alert-danger" style="font-size:13px;">
+            <strong>Advertencia:</strong> Esta acción borrará a este empleado del sistema. <strong>Esta acción es irreversible.</strong>
+          </div>
+        </div>
+        <div class="modal-footer" style="border-top:1px solid var(--border);">
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-sm btn-danger">Sí, Confirmar Eliminación</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endfor %}
+
+{% endif %}
+
+
+{% endblock %}
+{% block extra_js %}
+<script>lucide.createIcons();</script>
+{% endblock %}

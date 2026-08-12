@@ -1,0 +1,179 @@
+{% extends 'core/base.html' %}
+{% load static %}
+{% block title %}Bandeja OC Clientes — SIB Bark{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-3">
+  <div>
+    <h1 style="font-size:1.4rem;font-weight:700;margin:0;">
+      <i data-lucide="inbox" style="width:22px;height:22px;margin-right:8px;color:var(--blue);"></i>
+      Bandeja de OCs Clientes
+    </h1>
+    <p style="color:var(--txt-3);font-size:13px;margin:4px 0 0;">Órdenes de compra recibidas desde el portal externo</p>
+  </div>
+  <div class="d-flex gap-2 flex-wrap">
+    <a href="{% url 'solicitudes_acceso_lista' %}" class="btn btn-sm" style="background:var(--card);border:1px solid var(--border);">
+      <i data-lucide="users" style="width:14px;height:14px;"></i> Solicitudes de Acceso
+      {% if contadores.pendiente %}<span class="badge bg-warning text-dark ms-1">{{ contadores.pendiente }}</span>{% endif %}
+    </a>
+    <a href="{% url 'oc_clientes_config' %}" class="btn btn-sm" style="background:var(--card);border:1px solid var(--border);">
+      <i data-lucide="settings" style="width:14px;height:14px;"></i> Config. Correos
+    </a>
+  </div>
+</div>
+
+<!-- Resumen rápido -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-3">
+    <div class="card text-center" style="border:1px solid var(--border);background:var(--card);padding:16px;">
+      <div style="font-size:2rem;font-weight:800;color:#f59e0b;">{{ contadores.pendiente }}</div>
+      <div style="font-size:12px;color:var(--txt-3);">Pendientes</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card text-center" style="border:1px solid var(--border);background:var(--card);padding:16px;">
+      <div style="font-size:2rem;font-weight:800;color:#22c55e;">{{ contadores.aceptada }}</div>
+      <div style="font-size:12px;color:var(--txt-3);">Aceptadas</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card text-center" style="border:1px solid var(--border);background:var(--card);padding:16px;">
+      <div style="font-size:2rem;font-weight:800;color:#ef4444;">{{ contadores.rechazada }}</div>
+      <div style="font-size:12px;color:var(--txt-3);">Rechazadas</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card text-center" style="border:1px solid var(--border);background:var(--card);padding:16px;">
+      <div style="font-size:2rem;font-weight:800;color:var(--txt-3);">{{ contadores.todos }}</div>
+      <div style="font-size:12px;color:var(--txt-3);">Total</div>
+    </div>
+  </div>
+</div>
+
+<!-- Filtros / Tabs -->
+<div class="mb-3 d-flex gap-2 flex-wrap">
+  <a href="{% url 'oc_clientes_bandeja' %}" class="btn btn-sm {% if not filtro_estado %}btn-primary{% else %}btn-outline-secondary{% endif %}">Todas ({{ contadores.todos }})</a>
+  <a href="?estado=pendiente" class="btn btn-sm {% if filtro_estado == 'pendiente' %}btn-warning{% else %}btn-outline-warning{% endif %}">🟡 Pendientes ({{ contadores.pendiente }})</a>
+  <a href="?estado=aceptada" class="btn btn-sm {% if filtro_estado == 'aceptada' %}btn-success{% else %}btn-outline-success{% endif %}">🟢 Aceptadas ({{ contadores.aceptada }})</a>
+  <a href="?estado=rechazada" class="btn btn-sm {% if filtro_estado == 'rechazada' %}btn-danger{% else %}btn-outline-danger{% endif %}">🔴 Rechazadas ({{ contadores.rechazada }})</a>
+  <a href="?estado=borrador" class="btn btn-sm {% if filtro_estado == 'borrador' %}btn-secondary{% else %}btn-outline-secondary{% endif %}">⬜ Borradores ({{ contadores.borrador }})</a>
+</div>
+
+<!-- Tabla principal -->
+<div class="card" style="border:1px solid var(--border);background:var(--card);">
+  <div class="table-responsive">
+    <table class="table table-hover mb-0" style="font-size:13.5px;">
+      <thead>
+        <tr style="border-bottom:1px solid var(--border);">
+          <th style="padding:12px 16px;">N° OC</th>
+          <th>Cliente</th>
+          <th>RUT</th>
+          <th>Fecha Envío</th>
+          <th>Monto</th>
+          <th>Estado</th>
+          <th>Archivo</th>
+          <th style="text-align:right;padding-right:16px;">Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for oc in ocs %}
+        <tr>
+          <td style="padding:12px 16px;font-weight:600;">{{ oc.numero_oc }}</td>
+          <td>
+            <div style="font-weight:500;">{{ oc.cliente.razon_social }}</div>
+            <div style="font-size:11px;color:var(--txt-3);">{{ oc.cliente.user.email }}</div>
+          </td>
+          <td style="font-family:monospace;">{{ oc.cliente.rut }}</td>
+          <td>{{ oc.fecha_envio|date:"d/m/Y H:i"|default:"—" }}</td>
+          <td style="font-weight:600;color:#22c55e;">{{ oc.monto_formateado }}</td>
+          <td>
+            <span class="badge bg-{{ oc.badge_estado }}">{{ oc.get_estado_display }}</span>
+          </td>
+          <td>
+            {% if oc.archivo_oc %}
+              <a href="{{ oc.archivo_oc.url }}" target="_blank" class="btn btn-sm" style="background:var(--bg);border:1px solid var(--border);padding:4px 10px;">
+                <i data-lucide="file-text" style="width:13px;height:13px;"></i> Ver PDF
+              </a>
+            {% else %}
+              <span style="color:var(--txt-3);font-size:12px;">Sin archivo</span>
+            {% endif %}
+          </td>
+          <td style="text-align:right;padding-right:16px;">
+            {% if oc.estado == 'pendiente' or oc.estado == 'borrador' %}
+            <form method="post" action="{% url 'oc_cliente_aceptar' oc.id %}" class="d-inline">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-sm btn-success" style="padding:4px 12px;"
+                      onclick="return confirm('¿Aceptar la OC #{{ oc.numero_oc }}? Se notificará al cliente por email.')">
+                <i data-lucide="check" style="width:13px;height:13px;"></i> Aceptar
+              </button>
+            </form>
+            <button type="button" class="btn btn-sm btn-danger ms-1" style="padding:4px 12px;"
+                    data-bs-toggle="modal" data-bs-target="#modalRechazar{{ oc.id }}">
+              <i data-lucide="x" style="width:13px;height:13px;"></i> Rechazar
+            </button>
+            {% else %}
+            <span style="color:var(--txt-3);font-size:12px;">
+              Por: {{ oc.revisado_por.username|default:"—" }}<br>
+              {{ oc.fecha_decision|date:"d/m/Y"|default:"" }}
+            </span>
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="8" style="text-align:center;padding:48px;color:var(--txt-3);">
+            <i data-lucide="inbox" style="width:36px;height:36px;display:block;margin:0 auto 10px;"></i>
+            No hay OCs que mostrar con este filtro.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Info del link para clientes -->
+<div class="mt-4 p-3 rounded" style="background:var(--card);border:1px solid var(--border);">
+  <p style="font-size:13px;color:var(--txt-2);margin:0;">
+    <i data-lucide="link" style="width:14px;height:14px;margin-right:6px;color:var(--blue);"></i>
+    <strong>Link para que los clientes soliciten acceso:</strong>
+    <code style="margin-left:8px;background:var(--bg);padding:2px 8px;border-radius:4px;font-size:12px;">
+      {% with request.scheme as scheme %}{{ scheme }}://{{ request.get_host }}/portal/registro/{% endwith %}
+    </code>
+  </p>
+</div>
+
+<!-- Modales de Rechazo -->
+{% for oc in ocs %}
+{% if oc.estado == 'pendiente' or oc.estado == 'borrador' %}
+<div class="modal fade" id="modalRechazar{{ oc.id }}" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content" style="background:var(--card);border:1px solid var(--border);">
+      <div class="modal-header" style="border-bottom:1px solid var(--border);">
+        <h5 class="modal-title">Rechazar OC #{{ oc.numero_oc }}</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="post" action="{% url 'oc_cliente_rechazar' oc.id %}">
+        {% csrf_token %}
+        <div class="modal-body">
+          <p style="color:var(--txt-2);">Esta acción notificará al cliente <strong>{{ oc.cliente.razon_social }}</strong> por correo electrónico.</p>
+          <label class="form-label">Motivo / Observaciones <span style="color:#ef4444;">*</span></label>
+          <textarea name="observaciones" class="form-control" rows="4" required
+                    placeholder="Explica brevemente el motivo del rechazo. Este texto será incluido en el email al cliente."></textarea>
+        </div>
+        <div class="modal-footer" style="border-top:1px solid var(--border);">
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-sm btn-danger">Confirmar Rechazo</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endfor %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script>lucide.createIcons();</script>
+{% endblock %}

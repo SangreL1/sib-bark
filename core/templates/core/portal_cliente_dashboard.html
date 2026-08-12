@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mis OCs — Portal Maestranza Bark SPA</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Inter', sans-serif; background: #f0f4f8; min-height: 100vh; }
+    header { background: linear-gradient(135deg, #1e3a5f 0%, #1a3060 100%); padding: 16px 24px; display: flex; align-items: center; justify-content: space-between; }
+    header .logo { color: #fff; font-size: 1.1rem; font-weight: 800; letter-spacing: -0.5px; }
+    header .logo span { color: #60a5fa; }
+    header .user-info { display: flex; align-items: center; gap: 12px; }
+    header .user-badge { background: rgba(255,255,255,.12); border-radius: 20px; padding: 5px 14px; color: #e2e8f0; font-size: 13px; }
+    header .btn-logout { background: rgba(239,68,68,.15); border: 1px solid rgba(239,68,68,.3); color: #fca5a5; border-radius: 6px; padding: 5px 14px; font-size: 13px; text-decoration: none; }
+    .container-portal { max-width: 960px; margin: 0 auto; padding: 28px 20px; }
+    .welcome-card { background: linear-gradient(135deg, #1e3a5f, #1e406e); border-radius: 12px; padding: 24px 28px; margin-bottom: 24px; color: #fff; }
+    .welcome-card h2 { font-size: 1.2rem; font-weight: 700; margin-bottom: 4px; }
+    .welcome-card p { color: #93c5fd; font-size: 13px; }
+    .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px; }
+    @media (max-width: 600px) { .stat-grid { grid-template-columns: repeat(2, 1fr); } }
+    .stat-card { background: #fff; border-radius: 10px; padding: 16px; text-align: center; box-shadow: 0 1px 6px rgba(0,0,0,.06); }
+    .stat-num { font-size: 2rem; font-weight: 800; }
+    .stat-label { font-size: 11px; color: #6b7280; margin-top: 2px; }
+    .main-card { background: #fff; border-radius: 12px; box-shadow: 0 1px 8px rgba(0,0,0,.07); overflow: hidden; }
+    .main-card-header { padding: 16px 20px; border-bottom: 1px solid #f3f4f6; display: flex; align-items: center; justify-content: space-between; }
+    .main-card-header h3 { font-size: 14px; font-weight: 700; color: #111827; }
+    .btn-nueva-oc { background: #2563eb; color: #fff; border: none; border-radius: 7px; padding: 8px 18px; font-size: 13px; font-weight: 600; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+    .btn-nueva-oc:hover { background: #1d4ed8; color: #fff; }
+    table { width: 100%; border-collapse: collapse; }
+    th { padding: 10px 16px; font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: .5px; text-align: left; }
+    td { padding: 14px 16px; border-top: 1px solid #f3f4f6; font-size: 13.5px; color: #111827; }
+    .badge-estado { border-radius: 12px; padding: 3px 11px; font-size: 12px; font-weight: 600; display: inline-block; }
+    .badge-pendiente { background: #fef3c7; color: #92400e; }
+    .badge-aceptada { background: #d1fae5; color: #065f46; }
+    .badge-rechazada { background: #fee2e2; color: #991b1b; }
+    .badge-borrador { background: #f3f4f6; color: #4b5563; }
+    .empty-state { text-align: center; padding: 48px 20px; color: #6b7280; }
+    .empty-icon { font-size: 48px; margin-bottom: 12px; }
+    a.oc-link { color: #2563eb; text-decoration: none; font-weight: 600; }
+    a.oc-link:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+<header>
+  <div class="logo">BARK <span>Portal</span></div>
+  <div class="user-info">
+    <span class="user-badge">🏢 {{ perfil.razon_social }}</span>
+    <a href="{% url 'logout' %}" class="btn-logout">Salir</a>
+  </div>
+</header>
+
+<div class="container-portal">
+  <!-- Mensajes -->
+  {% if messages %}
+    {% for msg in messages %}
+    <div style="padding:12px 16px;border-radius:8px;margin-bottom:16px;{% if msg.tags == 'success' %}background:#f0fdf4;border:1px solid #86efac;color:#166534;{% else %}background:#fef2f2;border:1px solid #fca5a5;color:#991b1b;{% endif %}font-size:13.5px;">
+      {{ msg }}
+    </div>
+    {% endfor %}
+  {% endif %}
+
+  <!-- Bienvenida -->
+  <div class="welcome-card">
+    <h2>Bienvenido, {{ perfil.razon_social }}</h2>
+    <p>RUT: {{ perfil.rut }} · Email: {{ request.user.email }}</p>
+  </div>
+
+  <!-- Stats -->
+  <div class="stat-grid">
+    <div class="stat-card">
+      <div class="stat-num" style="color:#6366f1;">{{ stats.total }}</div>
+      <div class="stat-label">Total OCs</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num" style="color:#f59e0b;">{{ stats.pendientes }}</div>
+      <div class="stat-label">Pendientes</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num" style="color:#22c55e;">{{ stats.aceptadas }}</div>
+      <div class="stat-label">Aceptadas</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num" style="color:#ef4444;">{{ stats.rechazadas }}</div>
+      <div class="stat-label">Rechazadas</div>
+    </div>
+  </div>
+
+  <!-- Tabla de OCs -->
+  <div class="main-card">
+    <div class="main-card-header">
+      <h3>📋 Mis Órdenes de Compra</h3>
+      <a href="{% url 'portal_nueva_oc' %}" class="btn-nueva-oc">＋ Nueva OC</a>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>N° OC</th>
+          <th>Monto</th>
+          <th>Fecha Envío</th>
+          <th>Estado</th>
+          <th>Observaciones</th>
+          <th>Archivo</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for oc in ocs %}
+        <tr>
+          <td><a href="{% url 'portal_oc_detail' oc.id %}" class="oc-link">{{ oc.numero_oc }}</a></td>
+          <td style="font-weight:600;color:#16a34a;">{{ oc.monto_formateado }}</td>
+          <td style="color:#6b7280;">{{ oc.fecha_envio|date:"d/m/Y H:i"|default:"—" }}</td>
+          <td>
+            {% if oc.estado == 'pendiente' %}
+              <span class="badge-estado badge-pendiente">🟡 Pendiente</span>
+            {% elif oc.estado == 'aceptada' %}
+              <span class="badge-estado badge-aceptada">✅ Aceptada</span>
+            {% elif oc.estado == 'rechazada' %}
+              <span class="badge-estado badge-rechazada">❌ Rechazada</span>
+            {% else %}
+              <span class="badge-estado badge-borrador">⬜ Borrador</span>
+            {% endif %}
+          </td>
+          <td style="color:#6b7280;font-size:13px;">
+            {% if oc.observaciones_bark %}
+              {{ oc.observaciones_bark|truncatechars:60 }}
+            {% else %}—{% endif %}
+          </td>
+          <td>
+            {% if oc.archivo_oc %}
+              <a href="{{ oc.archivo_oc.url }}" target="_blank" style="color:#2563eb;font-size:13px;">Ver PDF</a>
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="6">
+            <div class="empty-state">
+              <div class="empty-icon">📭</div>
+              <p style="font-weight:600;color:#374151;">Aún no has enviado ninguna OC</p>
+              <p style="font-size:13px;margin-bottom:16px;">Haz clic en "Nueva OC" para empezar</p>
+              <a href="{% url 'portal_nueva_oc' %}" class="btn-nueva-oc">＋ Enviar mi primera OC</a>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,100 @@
+{% extends 'core/base.html' %}
+{% load static %}
+{% block title %}Configurar Correos — Portal OC Clientes{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+  <a href="{% url 'oc_clientes_bandeja' %}" style="color:var(--blue);text-decoration:none;font-size:13px;">
+    <i data-lucide="arrow-left" style="width:14px;height:14px;"></i> Volver a Bandeja
+  </a>
+</div>
+
+<div class="row justify-content-center">
+  <div class="col-lg-8">
+    <div class="card" style="border:1px solid var(--border);background:var(--card);border-radius:12px;overflow:hidden;">
+      <div style="background:linear-gradient(135deg,#1e3a5f,#1e2d4a);padding:24px;">
+        <h2 style="color:#60a5fa;margin:0;font-size:1.2rem;font-weight:700;">
+          <i data-lucide="mail" style="width:20px;height:20px;margin-right:8px;"></i>
+          Configuración de Notificaciones
+        </h2>
+        <p style="color:#93c5fd;font-size:13px;margin:6px 0 0;">
+          Estos correos recibirán alertas automáticas cuando llegue una nueva OC de cliente externo.
+        </p>
+      </div>
+
+      <div style="padding:28px;">
+        <form method="post">
+          {% csrf_token %}
+
+          <!-- Correos de Notificación -->
+          <div class="mb-4">
+            <label class="form-label fw-semibold">
+              <i data-lucide="at-sign" style="width:15px;height:15px;margin-right:6px;color:var(--blue);"></i>
+              Correos de Notificación de OCs
+            </label>
+            <textarea name="correos_notificacion_oc" class="form-control" rows="5"
+                      style="background:var(--bg);border:1px solid var(--border);color:var(--txt);border-radius:8px;font-family:monospace;"
+                      placeholder="kevin.angel@maestranzabark.cl&#10;administracion@maestranzabark.cl&#10;otrocorreo@empresa.cl">{{ config.correos_notificacion_oc }}</textarea>
+            <div class="form-text" style="color:var(--txt-3);margin-top:6px;">
+              Puedes escribir uno o varios correos, separados por <strong>coma</strong> o por <strong>salto de línea</strong>. 
+              Todos recibirán el mismo correo de alerta.
+            </div>
+          </div>
+
+          <!-- Nombre del Remitente -->
+          <div class="mb-4">
+            <label class="form-label fw-semibold">
+              <i data-lucide="user-check" style="width:15px;height:15px;margin-right:6px;color:var(--blue);"></i>
+              Nombre del Remitente
+            </label>
+            <input type="text" name="correo_remitente_display" class="form-control"
+                   style="background:var(--bg);border:1px solid var(--border);color:var(--txt);border-radius:8px;"
+                   value="{{ config.correo_remitente_display }}"
+                   placeholder="Maestranza Bark SPA">
+            <div class="form-text" style="color:var(--txt-3);margin-top:6px;">
+              Este nombre aparece en el campo "De:" de los correos enviados a clientes.
+            </div>
+          </div>
+
+          <button type="submit" class="btn btn-primary" style="min-width:140px;">
+            <i data-lucide="save" style="width:15px;height:15px;margin-right:6px;"></i>
+            Guardar Configuración
+          </button>
+        </form>
+
+        <!-- Vista previa de correos actuales -->
+        {% if lista_correos %}
+        <div style="margin-top:28px;padding:16px;background:var(--bg);border-radius:8px;border:1px solid var(--border);">
+          <p style="font-size:13px;font-weight:600;color:var(--txt-2);margin:0 0 10px;">
+            <i data-lucide="check-circle" style="width:14px;height:14px;color:#22c55e;margin-right:6px;"></i>
+            Destinatarios actuales configurados:
+          </p>
+          {% for correo in lista_correos %}
+          <div style="display:inline-flex;align-items:center;gap:6px;background:rgba(59,130,246,.12);border:1px solid rgba(59,130,246,.3);border-radius:20px;padding:4px 12px;margin:3px;font-size:13px;">
+            <i data-lucide="mail" style="width:12px;height:12px;color:var(--blue);"></i>
+            {{ correo }}
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- Explicación del sistema de emails -->
+        <div style="margin-top:24px;padding:16px;background:rgba(245,158,11,.07);border-left:3px solid #f59e0b;border-radius:0 8px 8px 0;">
+          <p style="font-size:12px;color:var(--txt-2);margin:0;line-height:1.8;">
+            <strong>¿Qué correos se envían automáticamente?</strong><br>
+            🔔 <strong>Nueva solicitud de acceso</strong> → a los correos configurados aquí<br>
+            📋 <strong>Nueva OC recibida</strong> → a los correos configurados aquí<br>
+            ✅ <strong>OC aceptada</strong> → al email del cliente externo<br>
+            ❌ <strong>OC rechazada</strong> → al email del cliente externo<br>
+            🔓 <strong>Acceso aprobado/rechazado</strong> → al email del cliente externo
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>lucide.createIcons();</script>
+{% endblock %}

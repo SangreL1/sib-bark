@@ -166,6 +166,13 @@
             <i data-lucide="receipt" style="width:15px;height:15px;"></i> Costos
           </a>
         </li>
+        {% if user.is_staff %}
+        <li class="nav-item">
+          <a href="{% url 'oc_clientes_bandeja' %}" class="nav-link {% if request.resolver_match.url_name == 'oc_clientes_bandeja' or request.resolver_match.url_name == 'solicitudes_acceso_lista' or request.resolver_match.url_name == 'oc_clientes_config' %}active{% endif %}" style="color:#93c5fd;">
+            <i data-lucide="inbox" style="width:15px;height:15px;"></i> OC Clientes
+          </a>
+        </li>
+        {% endif %}
 
       </ul>
 

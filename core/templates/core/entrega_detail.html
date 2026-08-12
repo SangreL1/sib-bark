@@ -156,8 +156,8 @@
                 <th class="text-center">Ø</th>
                 <th class="text-center">Estado</th>
                 <th class="text-center">Cant.</th>
-                <th>Masa (kg)</th>
-                <th>Acción</th>
+                <th class="text-center">Peso Total (kg)</th>
+                <th class="text-center">Acción</th>
               </tr>
             </thead>
             <tbody>
@@ -173,11 +173,80 @@
                   <td class="text-center">{{ item.diametro|default:"—" }}</td>
                   <td class="text-center">{{ item.estado_item|default:"—" }}</td>
                   <td class="text-center font-monospace">{{ item.cantidad|floatformat:0 }}</td>
-                  <td class="font-monospace">{{ item.peso_kg|default:"0.00" }} kg</td>
-                  <td>
-                    <a href="{% url 'delete_packing_item' orden_compra.numero_oc item.id %}" class="btn btn-sm btn-clear-danger text-danger p-1" style="min-height:30px;">
-                      <i data-lucide="trash-2" style="width:15px;height:15px;"></i>
-                    </a>
+                  <td class="font-monospace text-center"><strong class="text-warning">{{ item.peso_kg|default:"0.00" }} kg</strong></td>
+                  <td class="text-center">
+                    <div class="d-flex align-items-center justify-content-center gap-1">
+                      <button type="button" class="btn btn-sm btn-outline-warning p-1" data-bs-toggle="modal" data-bs-target="#editItemModal{{ item.id }}" title="Editar ítem y peso" style="min-height:30px;width:30px;">
+                        <i data-lucide="pencil" style="width:14px;height:14px;"></i>
+                      </button>
+                      <a href="{% url 'delete_packing_item' orden_compra.numero_oc item.id %}" class="btn btn-sm btn-outline-danger p-1" onclick="return confirm('¿Eliminar este ítem del despacho?');" title="Eliminar" style="min-height:30px;width:30px;">
+                        <i data-lucide="trash-2" style="width:14px;height:14px;"></i>
+                      </a>
+                    </div>
+
+                    <!-- Modal Editar Ítem Packing List -->
+                    <div class="modal fade text-start" id="editItemModal{{ item.id }}" tabindex="-1" aria-hidden="true">
+                      <div class="modal-dialog modal-dialog-centered">
+                        <div class="modal-content bg-dark text-white border border-secondary">
+                          <div class="modal-header border-secondary">
+                            <h5 class="modal-title d-flex align-items-center gap-2 text-warning fs-6">
+                              <i data-lucide="pencil" style="width:18px;height:18px;"></i> Editar Ítem: {{ item.item_oc.descripcion|truncatechars:35 }}
+                            </h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                          </div>
+                          <form action="{% url 'edit_packing_item' orden_compra.numero_oc item.id %}" method="POST">
+                            {% csrf_token %}
+                            <div class="modal-body">
+                              <div class="row g-3">
+                                <div class="col-12">
+                                  <label class="form-label text-muted small">Ítem del Proyecto</label>
+                                  <input type="text" class="form-control bg-secondary bg-opacity-25 text-white border-secondary" value="{{ item.item_oc.descripcion }}" disabled>
+                                  <input type="hidden" name="item_oc" value="{{ item.item_oc.id }}">
+                                </div>
+                                <div class="col-md-6">
+                                  <label class="form-label text-white">Cantidad Despachada</label>
+                                  <input type="number" step="0.01" name="cantidad" class="form-control bg-black text-white border-secondary" value="{{ item.cantidad }}" required>
+                                </div>
+                                <div class="col-md-6">
+                                  <label class="form-label text-white">Pallet / Bulto N°</label>
+                                  <input type="text" name="numero_bulto" class="form-control bg-black text-white border-secondary" value="{{ item.numero_bulto|default:'' }}">
+                                </div>
+                                <div class="col-md-6">
+                                  <label class="form-label text-warning fw-bold">Peso Total (Kg)</label>
+                                  <input type="number" step="0.01" name="peso_kg" class="form-control bg-black text-warning fw-bold border-warning" value="{{ item.peso_kg|default:'' }}" placeholder="Ej: 15.50">
+                                </div>
+                                <div class="col-md-6">
+                                  <label class="form-label text-white">Diámetro / Ø</label>
+                                  <input type="text" name="diametro" class="form-control bg-black text-white border-secondary" value="{{ item.diametro|default:'' }}">
+                                </div>
+                                <div class="col-md-4">
+                                  <label class="form-label text-white">Largo (mt)</label>
+                                  <input type="number" step="0.01" name="largo_mt" class="form-control bg-black text-white border-secondary" value="{{ item.largo_mt|default:'' }}">
+                                </div>
+                                <div class="col-md-4">
+                                  <label class="form-label text-white">Ancho (mt)</label>
+                                  <input type="number" step="0.01" name="ancho_mt" class="form-control bg-black text-white border-secondary" value="{{ item.ancho_mt|default:'' }}">
+                                </div>
+                                <div class="col-md-4">
+                                  <label class="form-label text-white">Alto (mt)</label>
+                                  <input type="number" step="0.01" name="alto_mt" class="form-control bg-black text-white border-secondary" value="{{ item.alto_mt|default:'' }}">
+                                </div>
+                                <div class="col-12">
+                                  <label class="form-label text-white">Estado de la Pieza</label>
+                                  <input type="text" name="estado_item" class="form-control bg-black text-white border-secondary" value="{{ item.estado_item|default:'ENTREGADO' }}">
+                                </div>
+                              </div>
+                            </div>
+                            <div class="modal-footer border-secondary">
+                              <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                              <button type="submit" class="btn btn-sm btn-warning text-dark fw-bold">
+                                <i data-lucide="save" style="width:14px;height:14px;vertical-align:middle;"></i> Guardar Cambios
+                              </button>
+                            </div>
+                          </form>
+                        </div>
+                      </div>
+                    </div>
                   </td>
                 </tr>
               {% empty %}
@@ -216,32 +285,31 @@
               {{ form.numero_bulto }}
             </div>
 
-            <!-- Nuevos campos para el reporte de Calidad/Packing List -->
-            <div class="col-md-4 col-sm-6">
+            <div class="col-md-3 col-sm-6">
+              <label class="form-label text-warning fw-bold">Peso Total (Kg)</label>
+              {{ form.peso_kg }}
+            </div>
+            <div class="col-md-3 col-sm-6">
               <label class="form-label">Diámetro / Ø</label>
               {{ form.diametro }}
             </div>
-            <div class="col-md-3 col-sm-6">
+            <div class="col-md-6 col-sm-12">
               <label class="form-label">Estado de la Pieza</label>
               {{ form.estado_item }}
             </div>
 
-            <!-- Dimensiones Físicas y Peso -->
-            <div class="col-md-2 col-sm-4">
+            <!-- Dimensiones Físicas -->
+            <div class="col-md-4 col-sm-4">
               <label class="form-label">Largo (mt)</label>
               {{ form.largo_mt }}
             </div>
-            <div class="col-md-2 col-sm-4">
+            <div class="col-md-4 col-sm-4">
               <label class="form-label">Ancho (mt)</label>
               {{ form.ancho_mt }}
             </div>
-            <div class="col-md-2 col-sm-4">
+            <div class="col-md-4 col-sm-4">
               <label class="form-label">Alto (mt)</label>
               {{ form.alto_mt }}
-            </div>
-            <div class="col-12">
-              <label class="form-label">Peso del Bulto (Kg)</label>
-              {{ form.peso_kg }}
             </div>
 
             <div class="col-12 text-end mt-4">

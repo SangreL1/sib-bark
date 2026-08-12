@@ -31,6 +31,7 @@ urlpatterns = [
     path('proyecto/<path:numero_oc>/agregar-item/', views.add_item, name='add_item'),
     path('proyecto/<path:numero_oc>/editar-item/<int:item_id>/', views.edit_item, name='edit_item'),
     path('proyecto/<path:numero_oc>/entrega/<int:entrega_id>/agregar-packing-item/', views.add_packing_item, name='add_packing_item'),
+    path('proyecto/<path:numero_oc>/packing-item/<int:item_id>/editar/', views.edit_packing_item, name='edit_packing_item'),
     path('proyecto/<path:numero_oc>/packing-item/<int:item_id>/eliminar/', views.delete_packing_item, name='delete_packing_item'),
 
     # Cost center
@@ -74,4 +75,37 @@ urlpatterns = [
     # Import y Herramientas API
     path('importar/', views.import_data, name='import_data'),
     path('api/analizar-documento/', views.api_analizar_documento, name='api_analizar_documento'),
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # PORTAL OC CLIENTES — Módulo B2B que reemplaza ICONSTRUYE
+    # ══════════════════════════════════════════════════════════════════════════
+
+    # API utilitarios
+    path('api/validar-rut/', views.api_validar_rut, name='api_validar_rut'),
+
+    # Portal Cliente (acceso externo)
+    path('portal/', views.portal_dashboard, name='portal_dashboard'),
+    path('portal/registro/', views.portal_registro, name='portal_registro'),
+    path('portal/login/', views.portal_login, name='portal_login'),
+    path('portal/oc/nueva/', views.portal_nueva_oc, name='portal_nueva_oc'),
+    path('portal/oc/<int:oc_id>/', views.portal_oc_detail, name='portal_oc_detail'),
+
+    # Panel Interno Bark (solo staff)
+    path('oc-clientes/', views.oc_clientes_bandeja, name='oc_clientes_bandeja'),
+    path('oc-clientes/<int:oc_id>/aceptar/', views.oc_cliente_aceptar, name='oc_cliente_aceptar'),
+    path('oc-clientes/<int:oc_id>/rechazar/', views.oc_cliente_rechazar, name='oc_cliente_rechazar'),
+    path('oc-clientes/accesos/', views.solicitudes_acceso_lista, name='solicitudes_acceso_lista'),
+    path('oc-clientes/accesos/<int:perfil_id>/aprobar/', views.aprobar_cliente, name='aprobar_cliente'),
+    path('oc-clientes/accesos/staff/<int:user_id>/aprobar/', views.aprobar_staff, name='aprobar_staff'),
+    path('oc-clientes/accesos/<int:perfil_id>/rechazar/', views.rechazar_cliente, name='rechazar_cliente'),
+    path('oc-clientes/accesos/<int:perfil_id>/editar/', views.editar_cliente, name='editar_cliente'),
+    path('oc-clientes/accesos/<int:perfil_id>/bloquear/', views.bloquear_cliente, name='bloquear_cliente'),
+    path('oc-clientes/accesos/<int:perfil_id>/eliminar/', views.eliminar_cliente, name='eliminar_cliente'),
+    
+    # URLS para gestión de STAFF (empleados)
+    path('oc-clientes/accesos/staff/<int:user_id>/editar/', views.editar_staff, name='editar_staff'),
+    path('oc-clientes/accesos/staff/<int:user_id>/bloquear/', views.bloquear_staff, name='bloquear_staff'),
+    path('oc-clientes/accesos/staff/<int:user_id>/eliminar/', views.eliminar_staff, name='eliminar_staff'),
+    
+    path('oc-clientes/configuracion/', views.oc_clientes_config, name='oc_clientes_config'),
 ]

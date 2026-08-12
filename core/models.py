@@ -887,3 +887,182 @@ class ItemGuia(models.Model):
     class Meta:
         verbose_name = "Ítem de Guía"
         verbose_name_plural = "Ítems de Guía"
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PORTAL OC CLIENTES — Módulo B2B que reemplaza ICONSTRUYE
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+class ConfiguracionSistema(models.Model):
+    """
+    Tabla singleton (siempre habrá solo 1 fila).
+    Guarda configuraciones editables desde la UI, sin tocar código.
+    - correos_notificacion_oc: Lista de correos (separados por coma o salto de línea)
+      a los que se les notifica cuando llega una nueva OC de cliente externo.
+    """
+    correos_notificacion_oc = models.TextField(
+        verbose_name="Correos para Notificación de OCs",
+        help_text="Ingresa uno o más correos separados por coma o por línea. Estos recibirán alertas cuando llegue una nueva OC.",
+        default="kevin.angel@maestranzabark.cl",
+    )
+    correo_remitente_display = models.CharField(
+        max_length=255,
+        verbose_name="Nombre del Remitente en Emails",
+        default="Maestranza Bark SPA",
+        help_text="Nombre que aparecerá como remitente en los correos automáticos.",
+    )
+
+    @classmethod
+    def get_instancia(cls):
+        """Retorna la única instancia de configuración, creándola si no existe."""
+        instancia, _ = cls.objects.get_or_create(pk=1)
+        return instancia
+
+    def get_lista_correos(self):
+        """Retorna la lista de correos como lista de strings limpios."""
+        raw = self.correos_notificacion_oc or ''
+        return [
+            c.strip()
+            for c in raw.replace('\n', ',').split(',')
+            if c.strip()
+        ]
+
+    def __str__(self):
+        return "Configuración del Sistema"
+
+    class Meta:
+        verbose_name = "Configuración del Sistema"
+        verbose_name_plural = "Configuración del Sistema"
+
+
+class PerfilClienteExterno(models.Model):
+    """
+    Perfil extendido para clientes externos que usan el portal de OCs.
+    Vinculado 1-a-1 con el User de Django. Incluye validación de RUT chileno.
+    El acceso al portal requiere aprobación manual por parte del staff de Bark.
+    """
+    ESTADOS_APROBACION = [
+        ('pendiente', '🟡 Pendiente de Aprobación'),
+        ('aprobado', '🟢 Aprobado'),
+        ('rechazado', '🔴 Rechazado'),
+    ]
+
+    user = models.OneToOneField(
+        'auth.User', on_delete=models.CASCADE,
+        related_name='perfil_cliente_externo', verbose_name="Usuario"
+    )
+    rut = models.CharField(
+        max_length=20, unique=True,
+        verbose_name="RUT (Empresa)",
+        help_text="RUT de la empresa en formato XX.XXX.XXX-X. Validado con algoritmo Módulo 11."
+    )
+    razon_social = models.CharField(max_length=255, verbose_name="Razón Social / Empresa")
+    telefono = models.CharField(max_length=30, blank=True, null=True, verbose_name="Teléfono de Contacto")
+    estado_aprobacion = models.CharField(
+        max_length=20, choices=ESTADOS_APROBACION,
+        default='pendiente', verbose_name="Estado de Aprobación"
+    )
+    fecha_solicitud = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de Solicitud")
+    fecha_decision = models.DateTimeField(null=True, blank=True, verbose_name="Fecha de Decisión")
+    observaciones_rechazo = models.TextField(
+        blank=True, null=True,
+        verbose_name="Motivo de Rechazo",
+        help_text="Si se rechaza el acceso, indica aquí el motivo para notificar al cliente."
+    )
+
+    @property
+    def esta_aprobado(self):
+        return self.estado_aprobacion == 'aprobado'
+
+    def __str__(self):
+        return f"{self.razon_social} ({self.rut}) — {self.get_estado_aprobacion_display()}"
+
+    class Meta:
+        verbose_name = "Perfil de Cliente Externo"
+        verbose_name_plural = "Perfiles de Clientes Externos"
+        ordering = ['-fecha_solicitud']
+
+
+class OrdenCompraCliente(models.Model):
+    """
+    OC enviada por un cliente externo a través del portal.
+    - 'borrador': el cliente la guardó sin enviar aún.
+    - 'pendiente': enviada, esperando decisión de Bark.
+    - 'aceptada': Bark la aceptó y comenzará el proceso.
+    - 'rechazada': Bark la rechazó con observaciones.
+    """
+    ESTADOS_OC = [
+        ('borrador', '⬜ Borrador'),
+        ('pendiente', '🟡 Pendiente de Revisión'),
+        ('aceptada', '🟢 Aceptada'),
+        ('rechazada', '🔴 Rechazada'),
+    ]
+
+    numero_oc = models.CharField(
+        max_length=255, unique=True,
+        verbose_name="N° de Orden de Compra",
+        help_text="Número de OC tal como aparece en el documento del cliente."
+    )
+    cliente = models.ForeignKey(
+        PerfilClienteExterno, on_delete=models.CASCADE,
+        related_name='ordenes_compra', verbose_name="Cliente"
+    )
+    archivo_oc = models.FileField(
+        upload_to='oc_clientes/',
+        verbose_name="Archivo PDF de la OC",
+        help_text="Sube el archivo PDF de tu Orden de Compra."
+    )
+    descripcion = models.TextField(
+        blank=True, null=True,
+        verbose_name="Descripción / Observaciones del Cliente"
+    )
+    monto_total = models.DecimalField(
+        max_digits=15, decimal_places=2,
+        null=True, blank=True,
+        verbose_name="Monto Total (con IVA)"
+    )
+    estado = models.CharField(
+        max_length=20, choices=ESTADOS_OC,
+        default='borrador', verbose_name="Estado"
+    )
+    # Campos de auditoría de Bark
+    observaciones_bark = models.TextField(
+        blank=True, null=True,
+        verbose_name="Observaciones de Bark",
+        help_text="Notas internas o motivo de rechazo. Se envía al cliente si se rechaza."
+    )
+    revisado_por = models.ForeignKey(
+        'auth.User', on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='ocs_revisadas', verbose_name="Revisado por"
+    )
+    # Timestamps
+    fecha_envio = models.DateTimeField(null=True, blank=True, verbose_name="Fecha de Envío")
+    fecha_decision = models.DateTimeField(null=True, blank=True, verbose_name="Fecha de Decisión")
+    creado_en = models.DateTimeField(auto_now_add=True)
+    actualizado_en = models.DateTimeField(auto_now=True)
+
+    @property
+    def monto_formateado(self):
+        if self.monto_total:
+            return f"${self.monto_total:,.0f}"
+        return "No especificado"
+
+    @property
+    def badge_estado(self):
+        colores = {
+            'borrador': 'secondary',
+            'pendiente': 'warning',
+            'aceptada': 'success',
+            'rechazada': 'danger',
+        }
+        return colores.get(self.estado, 'secondary')
+
+    def __str__(self):
+        return f"OC #{self.numero_oc} — {self.cliente.razon_social} ({self.get_estado_display()})"
+
+    class Meta:
+        verbose_name = "OC de Cliente Externo"
+        verbose_name_plural = "OCs de Clientes Externos"
+        ordering = ['-creado_en']

@@ -7,6 +7,126 @@
   {% load static %}
   <link rel="stylesheet" href="{% static 'core/css/style.css' %}">
   <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    /* Modal overlay */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.65);
+      backdrop-filter: blur(4px);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .modal-overlay.active { display: flex; }
+    .modal-box {
+      background: #1a2235;
+      border: 1px solid rgba(255,255,255,.1);
+      border-radius: 16px;
+      width: 100%;
+      max-width: 520px;
+      max-height: 90vh;
+      overflow-y: auto;
+      box-shadow: 0 20px 60px rgba(0,0,0,.5);
+      animation: slideUp .25s ease;
+    }
+    @keyframes slideUp { from { transform: translateY(30px); opacity:0; } to { transform: translateY(0); opacity:1; } }
+    .modal-header {
+      padding: 20px 24px 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .modal-header h2 { color: #e2e8f0; font-size: 1.1rem; font-weight: 700; margin: 0; }
+    .modal-body { padding: 16px 24px 24px; }
+    .modal-close {
+      background: none;
+      border: none;
+      color: #94a3b8;
+      cursor: pointer;
+      padding: 4px;
+      border-radius: 6px;
+      line-height: 1;
+    }
+    .modal-close:hover { background: rgba(255,255,255,.08); color: #e2e8f0; }
+    .reg-label { font-size: 12px; font-weight: 600; color: #94a3b8; margin-bottom: 5px; display: block; text-transform: uppercase; letter-spacing: .4px; }
+    .reg-input {
+      width: 100%;
+      padding: 10px 13px;
+      background: #0f172a;
+      border: 1.5px solid rgba(255,255,255,.12);
+      border-radius: 8px;
+      color: #e2e8f0;
+      font-size: 14px;
+      transition: border-color .2s;
+      margin-bottom: 14px;
+      box-sizing: border-box;
+    }
+    .reg-input:focus { outline: none; border-color: #3b82f6; background: #0d1425; }
+    .reg-input::placeholder { color: #475569; }
+    .reg-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; }
+    @media (max-width: 480px) { .reg-grid { grid-template-columns: 1fr; } }
+    .reg-btn {
+      width: 100%;
+      padding: 12px;
+      background: #2563eb;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 4px;
+      transition: background .2s;
+    }
+    .reg-btn:hover { background: #1d4ed8; }
+    .rut-status { font-size: 12px; margin-top: -10px; margin-bottom: 10px; font-weight: 600; }
+    .rut-status.ok { color: #4ade80; }
+    .rut-status.err { color: #f87171; }
+    .section-divider {
+      font-size: 11px;
+      color: #475569;
+      text-transform: uppercase;
+      letter-spacing: .6px;
+      margin: 4px 0 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .section-divider::before, .section-divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: rgba(255,255,255,.1);
+    }
+    .msg-modal {
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      margin-bottom: 14px;
+    }
+    .msg-modal.error { background: rgba(239,68,68,.12); border: 1px solid rgba(239,68,68,.3); color: #fca5a5; }
+    .msg-modal.success { background: rgba(34,197,94,.12); border: 1px solid rgba(34,197,94,.3); color: #86efac; }
+    /* Botón abrir modal */
+    .btn-solicitar {
+      display: block;
+      width: 100%;
+      text-align: center;
+      margin-top: 14px;
+      padding: 10px;
+      background: transparent;
+      border: 1.5px solid rgba(96,165,250,.4);
+      border-radius: 8px;
+      color: #60a5fa;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .2s, border-color .2s;
+    }
+    .btn-solicitar:hover { background: rgba(59,130,246,.1); border-color: #60a5fa; }
+  </style>
 </head>
 <body>
 <div class="login-page">
@@ -39,11 +159,204 @@
       <button type="submit" class="login-btn">Ingresar al Sistema</button>
     </form>
 
-    <p style="text-align:center; font-size:12px; color: var(--txt-3); margin-top: 24px;">
+    <!-- Botón para abrir el modal de registro -->
+    <button class="btn-solicitar" onclick="document.getElementById('modalRegistro').classList.add('active')">
+      🏗️ ¿Eres proveedor? Solicitar Acceso al Portal
+    </button>
+
+    <button class="btn-solicitar" onclick="document.getElementById('modalRegistroStaff').classList.add('active')" style="margin-top:12px; background:rgba(255, 255, 255, 0.05); color: #94a3b8; border-color:transparent;">
+      💼 ¿Eres de Bark? Registro de Empleados
+    </button>
+
+    <p style="text-align:center; font-size:11px; color: var(--txt-3); margin-top: 16px;">
       Maestranza Bark SpA · Acceso restringido a personal autorizado
     </p>
   </div>
 </div>
-<script>lucide.createIcons();</script>
+
+<!-- ══════ MODAL DE REGISTRO ══════ -->
+<div class="modal-overlay" id="modalRegistro" onclick="if(event.target===this)closeModal()">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h2>🏗️ Solicitar Acceso al Portal</h2>
+      <button class="modal-close" onclick="closeModal()">
+        <i data-lucide="x" style="width:20px;height:20px;"></i>
+      </button>
+    </div>
+    <div class="modal-body">
+
+      {% if registro_errores %}
+        {% for err in registro_errores %}
+        <div class="msg-modal error">{{ err }}</div>
+        {% endfor %}
+      {% endif %}
+      {% if registro_ok %}
+        <div class="msg-modal success">{{ registro_ok }}</div>
+      {% endif %}
+
+      <p style="color:#94a3b8;font-size:13px;margin-bottom:16px;">
+        El equipo de Maestranza Bark revisará tu solicitud y recibirás un email de confirmación.
+      </p>
+
+      <form method="POST" action="?registro=1" id="formRegistro">
+        {% csrf_token %}
+        <input type="hidden" name="accion" value="registro">
+
+        <!-- RUT (primero porque es el dato más crítico) -->
+        <label class="reg-label">RUT de la Empresa *</label>
+        <input type="text" name="rut" id="reg_rut" class="reg-input" placeholder="77.501.904-2" required
+               value="{{ registro_datos.rut|default:'' }}">
+        <div class="rut-status" id="rut-status" style="display:none;"></div>
+
+        <label class="reg-label">Razón Social / Empresa *</label>
+        <input type="text" name="razon_social" class="reg-input" required
+               placeholder="Constructora Fe Grande S.A."
+               value="{{ registro_datos.razon_social|default:'' }}">
+
+        <div class="section-divider">datos de contacto</div>
+
+        <div class="reg-grid">
+          <div>
+            <label class="reg-label">Nombre de Contacto</label>
+            <input type="text" name="nombre" class="reg-input" placeholder="Juan Pérez"
+                   value="{{ registro_datos.nombre|default:'' }}">
+          </div>
+          <div>
+            <label class="reg-label">Teléfono</label>
+            <input type="tel" name="telefono" class="reg-input" placeholder="+56 9 1234 5678"
+                   value="{{ registro_datos.telefono|default:'' }}">
+          </div>
+        </div>
+
+        <div class="section-divider">acceso al sistema</div>
+
+        <label class="reg-label">Usuario *</label>
+        <input type="text" name="reg_username" class="reg-input" required
+               placeholder="empresa_abc (sin espacios)"
+               value="{{ registro_datos.reg_username|default:'' }}"
+               autocomplete="off">
+
+        <label class="reg-label">Correo Electrónico *</label>
+        <input type="email" name="email" class="reg-input" required
+               placeholder="contacto@empresa.cl"
+               value="{{ registro_datos.email|default:'' }}">
+
+        <div class="reg-grid">
+          <div>
+            <label class="reg-label">Contraseña * (mín. 8 caracteres)</label>
+            <input type="password" name="password" class="reg-input" required
+                   placeholder="••••••••" autocomplete="new-password">
+          </div>
+          <div>
+            <label class="reg-label">Repetir Contraseña *</label>
+            <input type="password" name="password2" class="reg-input" required
+                   placeholder="confirmar" autocomplete="new-password">
+          </div>
+        </div>
+
+        <button type="submit" class="reg-btn">Enviar Solicitud →</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ══════ MODAL DE REGISTRO STAFF ══════ -->
+<div class="modal-overlay" id="modalRegistroStaff" onclick="if(event.target===this)closeModalStaff()">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h2>💼 Registro de Empleados Bark (Staff)</h2>
+      <button class="modal-close" onclick="closeModalStaff()">
+        <i data-lucide="x" style="width:20px;height:20px;"></i>
+      </button>
+    </div>
+    <div class="modal-body">
+      <p style="color:#94a3b8;font-size:13px;margin-bottom:16px;">
+        Este registro es exclusivo para trabajadores internos de Maestranza Bark SpA.
+      </p>
+
+      <form method="POST" action="?registro_staff=1" id="formRegistroStaff">
+        {% csrf_token %}
+        <input type="hidden" name="accion" value="registro_staff">
+
+        <label class="reg-label">Nombre Completo *</label>
+        <input type="text" name="nombre" class="reg-input" placeholder="Tu nombre" required>
+        
+        <div class="row g-2">
+          <div class="col-6">
+            <label class="reg-label">RUT *</label>
+            <input type="text" name="rut" class="reg-input" placeholder="Ej: 15123456-7" required>
+          </div>
+          <div class="col-6">
+            <label class="reg-label">Usuario de Acceso *</label>
+            <input type="text" name="reg_username" class="reg-input" placeholder="Ej: k.flores" required autocomplete="off">
+          </div>
+        </div>
+        
+        <label class="reg-label">Correo Electrónico *</label>
+        <input type="email" name="email" class="reg-input" placeholder="tu@correo.cl" required>
+
+        <div class="reg-grid">
+          <div>
+            <label class="reg-label">Contraseña *</label>
+            <input type="password" name="password" class="reg-input" required placeholder="••••••••" autocomplete="new-password">
+          </div>
+          <div>
+            <label class="reg-label">Repetir *</label>
+            <input type="password" name="password2" class="reg-input" required placeholder="confirmar" autocomplete="new-password">
+          </div>
+        </div>
+
+        <button type="submit" class="reg-btn" style="background:var(--blue);border:none;box-shadow:0 0 10px rgba(56,189,248,.3);">Crear Cuenta de Empleado</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+lucide.createIcons();
+
+function closeModal() {
+  document.getElementById('modalRegistro').classList.remove('active');
+}
+function closeModalStaff() {
+  document.getElementById('modalRegistroStaff').classList.remove('active');
+}
+
+// Abrir el modal automáticamente si hay errores o éxito de registro
+{% if registro_errores or registro_ok %}
+document.getElementById('modalRegistro').classList.add('active');
+{% endif %}
+
+// Validación RUT en tiempo real
+let rutTimer;
+const rutInput = document.getElementById('reg_rut');
+const rutStatus = document.getElementById('rut-status');
+
+rutInput.addEventListener('input', function() {
+  clearTimeout(rutTimer);
+  const rut = this.value.trim();
+  if (rut.length < 7) { rutStatus.style.display = 'none'; return; }
+  rutTimer = setTimeout(() => {
+    fetch('/api/validar-rut/?rut=' + encodeURIComponent(rut))
+      .then(r => r.json())
+      .then(data => {
+        rutStatus.style.display = 'block';
+        if (data.valido) {
+          rutInput.value = data.rut_formateado;
+          if (data.ya_existe) {
+            rutStatus.textContent = '⚠️ Este RUT ya está registrado';
+            rutStatus.className = 'rut-status err';
+          } else {
+            rutStatus.textContent = '✓ RUT válido: ' + data.rut_formateado;
+            rutStatus.className = 'rut-status ok';
+          }
+        } else {
+          rutStatus.textContent = '✗ RUT inválido — verifica el dígito verificador';
+          rutStatus.className = 'rut-status err';
+        }
+      });
+  }, 500);
+});
+</script>
 </body>
 </html>

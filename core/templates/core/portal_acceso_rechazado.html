@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Acceso Rechazado — Portal Bark</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+<style>*{margin:0;padding:0;box-sizing:border-box;}body{font-family:'Inter',sans-serif;background:#f0f4f8;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;}.card{background:#fff;border-radius:16px;box-shadow:0 8px 40px rgba(0,0,0,.1);max-width:440px;width:100%;text-align:center;padding:40px 32px;}.icon{font-size:56px;margin-bottom:16px;}.h1{font-size:1.3rem;font-weight:700;color:#111827;margin-bottom:8px;}.sub{color:#6b7280;font-size:14px;line-height:1.6;}.info{background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:16px;margin:20px 0;font-size:13px;color:#991b1b;}.btn{display:inline-block;padding:10px 24px;background:#ef4444;color:#fff;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600;margin-top:8px;}</style>
+</head><body><div class="card">
+  <div class="icon">❌</div>
+  <h1 class="h1">Acceso No Aprobado</h1>
+  <p class="sub">Hola <strong>{{ perfil.razon_social }}</strong>, lamentablemente tu solicitud de acceso no fue aprobada.</p>
+  {% if perfil.observaciones_rechazo %}<div class="info"><strong>Motivo:</strong> {{ perfil.observaciones_rechazo }}</div>{% endif %}
+  <p class="sub">Para más información contacta a <a href="mailto:administracion@maestranzabark.cl" style="color:#2563eb;">administracion@maestranzabark.cl</a></p>
+  <a href="{% url 'logout' %}" class="btn">Cerrar Sesión</a>
+</div></body></html>

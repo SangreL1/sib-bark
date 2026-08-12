@@ -43,16 +43,181 @@ from .forms import (
 def login_view(request):
     if request.user.is_authenticated:
         return redirect('project_list')
+
+    registro_errores = []
+    registro_ok = None
+    registro_datos = {}
+
     if request.method == 'POST':
-        username = request.POST.get('username')
-        password = request.POST.get('password')
-        user = authenticate(request, username=username, password=password)
-        if user:
-            login(request, user)
-            return redirect(request.GET.get('next', 'project_list'))
+        accion = request.POST.get('accion', '')
+
+        # ── Registro de Empleados STAFF ──────────────────────────────────────
+        if accion == 'registro_staff':
+            from django.contrib.auth.models import User
+            from .utils_seguridad import validar_rut_chileno, formatear_rut
+            nombre = request.POST.get('nombre', '').strip()
+            username = request.POST.get('reg_username', '').strip()
+            email = request.POST.get('email', '').strip()
+            rut = request.POST.get('rut', '').strip()
+            password = request.POST.get('password', '').strip()
+            password_confirm = request.POST.get('password2', '').strip()
+            
+            errores_staff = []
+            if not username or not email or not password or not nombre or not rut:
+                errores_staff.append("Todos los campos son obligatorios.")
+            
+            rut_fmt = ''
+            if rut:
+                if not validar_rut_chileno(rut):
+                    errores_staff.append("El RUT ingresado no es válido (revisa el dígito verificador).")
+                else:
+                    rut_fmt = formatear_rut(rut)
+                    # Check if RUT already in use
+                    if User.objects.filter(last_name=rut_fmt).exists():
+                        errores_staff.append("Este RUT ya se encuentra registrado.")
+                    
+            if password != password_confirm:
+                errores_staff.append("Las contraseñas no coinciden.")
+            if User.objects.filter(username=username).exists():
+                errores_staff.append("El nombre de usuario ya existe.")
+            if User.objects.filter(email=email).exists():
+                errores_staff.append("El correo ya está registrado.")
+                
+            if errores_staff:
+                for e in errores_staff:
+                    messages.error(request, e)
+                return redirect('login')
+                
+            # Crear empleado Staff y dejarlo INACTIVO para aprobación manual
+            # Usamos last_name para guardar el número de RUT del empleado
+            user = User.objects.create_user(
+                username=username,
+                email=email,
+                password=password,
+                first_name=nombre,
+                last_name=rut_fmt,
+                is_staff=True,
+                is_active=False
+            )
+            
+            # Enviar correos de notificación
+            from .emails import email_staff_acceso_pendiente, email_nueva_solicitud_staff
+            email_staff_acceso_pendiente(user)
+            email_nueva_solicitud_staff(user)
+            
+            messages.success(request, f'¡Solicitud enviada, {nombre}! Tu cuenta de empleado fue creada y está en estado de ESPERA. Te notificaremos por correo cuando sea activada.')
+            return redirect('login')
+
+        # ── Registro de nuevo cliente proveedor ──────────────────────────────
+        if accion == 'registro':
+            from django.contrib.auth.models import User
+            from .models import PerfilClienteExterno, ConfiguracionSistema
+            from .utils_seguridad import validar_rut_chileno, formatear_rut
+            from .emails import email_nueva_solicitud_acceso
+
+            username = request.POST.get('reg_username', '').strip()
+            email_val = request.POST.get('email', '').strip()
+            password = request.POST.get('password', '').strip()
+            password2 = request.POST.get('password2', '').strip()
+            rut = request.POST.get('rut', '').strip()
+            razon_social = request.POST.get('razon_social', '').strip()
+            nombre = request.POST.get('nombre', '').strip()
+            telefono = request.POST.get('telefono', '').strip()
+
+            # Guardar datos para repoblar el modal si hay errores
+            registro_datos = {
+                'reg_username': username, 'email': email_val,
+                'rut': rut, 'razon_social': razon_social,
+                'nombre': nombre, 'telefono': telefono,
+            }
+
+            # Validaciones
+            if not username:
+                registro_errores.append("El nombre de usuario es requerido.")
+            elif User.objects.filter(username=username).exists():
+                registro_errores.append("Ese nombre de usuario ya está registrado.")
+
+            if not email_val:
+                registro_errores.append("El correo electrónico es requerido.")
+            elif User.objects.filter(email=email_val).exists():
+                registro_errores.append("Ya existe una cuenta con ese correo electrónico.")
+
+            if not password or len(password) < 8:
+                registro_errores.append("La contraseña debe tener al menos 8 caracteres.")
+            elif password != password2:
+                registro_errores.append("Las contraseñas no coinciden.")
+
+            if not rut or not validar_rut_chileno(rut):
+                registro_errores.append("El RUT ingresado no es válido (revisa el dígito verificador).")
+            else:
+                rut_fmt = formatear_rut(rut)
+                if PerfilClienteExterno.objects.filter(rut=rut_fmt).exists():
+                    registro_errores.append("Este RUT ya tiene una cuenta registrada.")
+
+            if not razon_social:
+                registro_errores.append("La razón social / nombre de empresa es requerida.")
+
+            if not registro_errores:
+                rut_fmt = formatear_rut(rut)
+                user = User.objects.create_user(
+                    username=username,
+                    email=email_val,
+                    password=password,
+                    first_name=nombre,
+                    is_active=True,
+                )
+                perfil = PerfilClienteExterno.objects.create(
+                    user=user,
+                    rut=rut_fmt,
+                    razon_social=razon_social,
+                    telefono=telefono,
+                    estado_aprobacion='pendiente',
+                )
+                # Notificar al equipo Bark
+                email_nueva_solicitud_acceso(perfil)
+                registro_ok = (
+                    f"✅ Solicitud enviada correctamente. El equipo de Maestranza Bark "
+                    f"revisará tu solicitud y recibirás un email a {email_val}."
+                )
+                registro_datos = {}  # Limpiar el formulario
+
         else:
-            messages.error(request, 'Usuario o contraseña incorrectos.')
-    return render(request, 'core/login.html')
+            # ── Login normal ────────────────────────────────────────────────
+            from .utils_seguridad import formatear_rut
+            username = request.POST.get('username', '').strip()
+            password = request.POST.get('password', '').strip()
+            
+            # Permitir login con RUT (para PerfilClienteExterno y para Staff que tienen RUT en last_name)
+            user_to_auth = username
+            try:
+                rut_fmt = formatear_rut(username)
+                if rut_fmt:
+                    perfil = PerfilClienteExterno.objects.filter(rut=rut_fmt).first()
+                    if perfil:
+                        user_to_auth = perfil.user.username
+                    else:
+                        from django.contrib.auth.models import User
+                        staff_user = User.objects.filter(last_name=rut_fmt).first()
+                        if staff_user:
+                            user_to_auth = staff_user.username
+            except Exception:
+                pass
+                
+            user = authenticate(request, username=user_to_auth, password=password)
+            if user:
+                login(request, user)
+                # Si un cliente entra por aqui, redirigirlo a SU portal
+                if not user.is_staff and hasattr(user, 'perfil_cliente_externo'):
+                    return redirect('portal_dashboard')
+                return redirect(request.GET.get('next', 'project_list'))
+            else:
+                messages.error(request, 'Usuario o contraseña incorrectos.')
+
+    return render(request, 'core/login.html', {
+        'registro_errores': registro_errores,
+        'registro_ok': registro_ok,
+        'registro_datos': registro_datos,
+    })
 
 
 def logout_view(request):
@@ -1041,8 +1206,11 @@ def add_packing_item(request, numero_oc, entrega_id):
             if packing_item.item_oc:
                 if not packing_item.diametro and packing_item.item_oc.size_code:
                     packing_item.diametro = packing_item.item_oc.size_code
-                if not packing_item.peso_kg and packing_item.item_oc.peso_unitario_kg:
-                    packing_item.peso_kg = packing_item.item_oc.peso_unitario_kg
+                if not packing_item.peso_kg:
+                    if packing_item.item_oc.peso_unitario_kg:
+                        packing_item.peso_kg = packing_item.item_oc.peso_unitario_kg * packing_item.cantidad
+                    elif packing_item.item_oc.peso:
+                        packing_item.peso_kg = packing_item.item_oc.peso
                 if not packing_item.modelo_soporte and packing_item.item_oc.descripcion:
                     packing_item.modelo_soporte = packing_item.item_oc.descripcion
                 if not packing_item.unidades and packing_item.item_oc.unidad:
@@ -1057,6 +1225,7 @@ def add_packing_item(request, numero_oc, entrega_id):
                 detalle=(
                     f"Ítem: '{packing_item.item_oc.descripcion}' — "
                     f"Cant: {packing_item.cantidad} | "
+                    f"Peso: {packing_item.peso_kg or 0} kg | "
                     f"Bulto: {packing_item.numero_bulto or 'N/A'} | "
                     f"Guía: {entrega.guia_despacho or 'S/N'}"
                 ),
@@ -1067,6 +1236,38 @@ def add_packing_item(request, numero_oc, entrega_id):
             messages.error(request, f"Error al añadir ítem: {form.errors}")
 
     return redirect('project_detail', numero_oc=numero_oc)
+
+
+@login_required
+def edit_packing_item(request, numero_oc, item_id):
+    orden_compra = get_object_or_404(OrdenCompra, numero_oc=numero_oc)
+    packing_item = get_object_or_404(
+        PackingListItem, id=item_id, entrega__orden_compra=orden_compra
+    )
+
+    if request.method == 'POST':
+        form = PackingListItemForm(request.POST, instance=packing_item, orden_compra=orden_compra)
+        if form.is_valid():
+            p_item = form.save()
+            registrar_trazabilidad(
+                orden_compra=orden_compra,
+                accion="Ítem Despachado Editado",
+                detalle=(
+                    f"Ítem: '{p_item.item_oc.descripcion}' — "
+                    f"Cant: {p_item.cantidad} | "
+                    f"Peso: {p_item.peso_kg or 0} kg | "
+                    f"Bulto: {p_item.numero_bulto or 'N/A'}"
+                ),
+                usuario=request.user
+            )
+            messages.success(request, "✅ Ítem de Packing List actualizado correctamente.")
+        else:
+            messages.error(request, f"Error al actualizar ítem: {form.errors}")
+
+    next_url = request.META.get('HTTP_REFERER')
+    if next_url:
+        return redirect(next_url)
+    return redirect('entrega_detail', numero_oc=numero_oc, entrega_id=packing_item.entrega.id)
 
 
 @login_required
@@ -1385,6 +1586,7 @@ def generate_packing_list_pdf(request, packing_list_id):
         Paragraph('Largo', header_style),
         Paragraph('Ancho', header_style),
         Paragraph('Ø', header_style),
+        Paragraph('Peso (kg)', header_style),
         Paragraph('Estado', header_style),
         Paragraph('Unidades', header_style)
     ]]
@@ -1402,20 +1604,22 @@ def generate_packing_list_pdf(request, packing_list_id):
         largo = format_meas(item.largo_mt)
         ancho = format_meas(item.ancho_mt)
         diametro = format_meas(item.medida_1) if item.medida_1 is not None else (item.diametro or 'N/A')
+        peso_str = f"{item.peso_kg:.2f} kg" if item.peso_kg is not None else "N/A"
         
         table_data.append([
             Paragraph(f"{index}. {desc}", body_style),
             Paragraph(largo, body_style),
             Paragraph(ancho, body_style),
             Paragraph(diametro, body_style),
+            Paragraph(peso_str, body_style),
             Paragraph(item.estado_item or "N/A", body_style),
             Paragraph(str(int(item.cantidad)), body_style)
         ])
         
     if not items:
-        table_data.append([Paragraph("No se encontraron ítems en esta entrega.", body_style), "", "", "", "", ""])
+        table_data.append([Paragraph("No se encontraron ítems en esta entrega.", body_style), "", "", "", "", "", ""])
         
-    items_table = Table(table_data, colWidths=[200, 60, 60, 60, 60, 60])
+    items_table = Table(table_data, colWidths=[160, 50, 50, 50, 65, 65, 60])
     items_table.setStyle(TableStyle([
         ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#0d1220')),
         ('ALIGN', (0,0), (-1,-1), 'LEFT'),
@@ -1740,8 +1944,8 @@ def export_packing_list_excel(request, packing_list_id):
     ws.row_dimensions[15].height = 10
 
     # ── FILA 16: Encabezados de tabla ─────────────────────────────────────────
-    headers = ['ITEM', 'LARGO', 'ANCHO', 'Ø', 'ESTADO', 'UNIDADES']
-    col_map = [1, 2, 3, 4, 5, 6]
+    headers = ['ITEM', 'LARGO', 'ANCHO', 'Ø', 'PESO (KG)', 'ESTADO', 'UNIDADES']
+    col_map = [1, 2, 3, 4, 5, 6, 7]
     hdr_bg = '1a3a5c'
     for i, h in enumerate(headers):
         c = ws.cell(row=16, column=col_map[i], value=h)
@@ -1765,11 +1969,13 @@ def export_packing_list_excel(request, packing_list_id):
 
         for idx, item in enumerate(items, start=1):
             bg = alt_colors[idx % 2]
+            peso_ex = f"{item.peso_kg:.2f} kg" if item.peso_kg is not None else '—'
             row_vals = [
                 idx,
                 format_meas_ex(item.largo_mt),
                 format_meas_ex(item.ancho_mt),
                 format_meas_ex(item.medida_1) if item.medida_1 is not None else (item.diametro or '—'),
+                peso_ex,
                 (item.estado_item or 'ENTREGADO').upper(),
                 str(int(float(item.cantidad or 1)))
             ]
@@ -1782,7 +1988,7 @@ def export_packing_list_excel(request, packing_list_id):
             ws.row_dimensions[row_num].height = 16
             row_num += 1
     else:
-        ws.merge_cells(f'A{row_num}:F{row_num}')
+        ws.merge_cells(f'A{row_num}:G{row_num}')
         c = ws.cell(row=row_num, column=1, value='Sin ítems registrados en este despacho')
         c.font = Font(italic=True, size=9, color='888888', name='Calibri')
         c.alignment = Alignment(horizontal='center', vertical='center')
@@ -2684,6 +2890,7 @@ def guia_packing_combinado_pdf(request, numero_oc, entrega_id):
             Paragraph('Modelo Soporte', header_style),
             Paragraph(col_m1, header_style),
             Paragraph(col_m2, header_style),
+            Paragraph('Peso (kg)', header_style),
             Paragraph('Estado', header_style),
             Paragraph('Unidades', header_style),
         ]]
@@ -2691,17 +2898,19 @@ def guia_packing_combinado_pdf(request, numero_oc, entrega_id):
         for idx, pli in enumerate(pl_items, 1):
             m1 = str(pli.medida_1) if pli.medida_1 is not None else (pli.diametro or 'N/A')
             m2 = str(pli.medida_2) if pli.medida_2 is not None else (pli.alto_item or 'N/A')
+            peso_str = f"{pli.peso_kg:.2f} kg" if pli.peso_kg is not None else "N/A"
             pl_items_data.append([
                 Paragraph(f"{idx}. {pli.item_oc.descripcion}", body_style),
                 Paragraph(pli.modelo_soporte or 'N/A', body_style),
                 Paragraph(m1, body_style), Paragraph(m2, body_style),
+                Paragraph(peso_str, body_style),
                 Paragraph(pli.estado_item or 'N/A', body_style),
                 Paragraph(pli.unidades or str(int(pli.cantidad)), body_style),
             ])
         if not pl_items:
-            pl_items_data.append([Paragraph('Sin ítems.', body_style), '', '', '', '', ''])
+            pl_items_data.append([Paragraph('Sin ítems.', body_style), '', '', '', '', '', ''])
 
-        pl_it_tbl = Table(pl_items_data, colWidths=[180, 110, 60, 60, 60, 60])
+        pl_it_tbl = Table(pl_items_data, colWidths=[150, 95, 50, 50, 60, 55, 60])
         pl_it_tbl.setStyle(TableStyle([
             ('BACKGROUND', (0,0), (-1,0), dark_blue),
             ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#dddddd')),
@@ -2715,3 +2924,610 @@ def guia_packing_combinado_pdf(request, numero_oc, entrega_id):
 
     doc.build(story)
     return response
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PORTAL OC CLIENTES — Módulo B2B que reemplaza ICONSTRUYE
+# ══════════════════════════════════════════════════════════════════════════════
+
+from functools import wraps
+from django.contrib.auth import login as auth_login
+from django.contrib.auth.models import User
+from .models import ConfiguracionSistema, PerfilClienteExterno, OrdenCompraCliente
+from .utils_seguridad import validar_rut_chileno, formatear_rut
+from .emails import (
+    email_nueva_solicitud_acceso, email_acceso_aprobado, email_acceso_rechazado,
+    email_oc_recibida, email_oc_aceptada, email_oc_rechazada,
+)
+
+
+# ── Decoradores de Seguridad ──────────────────────────────────────────────────
+
+def requiere_staff_bark(view_func):
+    """Solo permite acceso a usuarios autenticados con is_staff=True."""
+    @wraps(view_func)
+    def wrapper(request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return redirect(f'/login/?next={request.path}')
+        if not request.user.is_staff:
+            from django.http import HttpResponseForbidden
+            return HttpResponseForbidden(
+                '<h1>403 - Acceso Denegado</h1>'
+                '<p>Esta sección es exclusiva para el equipo interno de Bark.</p>'
+            )
+        return view_func(request, *args, **kwargs)
+    return wrapper
+
+
+def requiere_cliente_aprobado(view_func):
+    """Solo permite acceso a clientes con perfil externo APROBADO."""
+    @wraps(view_func)
+    def wrapper(request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return redirect(f'/portal/login/?next={request.path}')
+        # Staff de Bark no necesita perfil de cliente
+        if request.user.is_staff:
+            return redirect('project_list')
+        try:
+            perfil = request.user.perfil_cliente_externo
+        except PerfilClienteExterno.DoesNotExist:
+            return redirect('portal_registro')
+        if perfil.estado_aprobacion == 'pendiente':
+            return render(request, 'core/portal_acceso_pendiente.html', {'perfil': perfil})
+        if perfil.estado_aprobacion == 'rechazado':
+            return render(request, 'core/portal_acceso_rechazado.html', {'perfil': perfil})
+        return view_func(request, *args, **kwargs)
+    return wrapper
+
+
+# ── API: Validar RUT (AJAX) ───────────────────────────────────────────────────
+
+def api_validar_rut(request):
+    """Endpoint AJAX que retorna si un RUT chileno es válido."""
+    rut = request.GET.get('rut', '')
+    es_valido = validar_rut_chileno(rut)
+    rut_formateado = formatear_rut(rut) if es_valido else rut
+    # Verificar si ya existe en BD
+    ya_existe = PerfilClienteExterno.objects.filter(rut=rut_formateado).exists() if es_valido else False
+    return JsonResponse({
+        'valido': es_valido,
+        'rut_formateado': rut_formateado,
+        'ya_existe': ya_existe,
+    })
+
+
+# ── Portal Cliente: Registro ──────────────────────────────────────────────────
+
+def portal_registro(request):
+    """Formulario de solicitud de acceso para clientes externos."""
+    if request.user.is_authenticated:
+        if request.user.is_staff:
+            return redirect('project_list')
+        try:
+            request.user.perfil_cliente_externo
+            return redirect('portal_dashboard')
+        except PerfilClienteExterno.DoesNotExist:
+            pass  # Usuario sin perfil, continúa al formulario
+
+    if request.method == 'POST':
+        # Validar datos
+        username = request.POST.get('username', '').strip()
+        email = request.POST.get('email', '').strip()
+        password = request.POST.get('password', '').strip()
+        password2 = request.POST.get('password2', '').strip()
+        rut = request.POST.get('rut', '').strip()
+        razon_social = request.POST.get('razon_social', '').strip()
+        nombre = request.POST.get('nombre', '').strip()
+        telefono = request.POST.get('telefono', '').strip()
+
+        errores = []
+
+        if not username:
+            errores.append("El nombre de usuario es requerido.")
+        elif User.objects.filter(username=username).exists():
+            errores.append("Ese nombre de usuario ya está registrado.")
+
+        if not email:
+            errores.append("El correo electrónico es requerido.")
+        elif User.objects.filter(email=email).exists():
+            errores.append("Ya hay una cuenta asociada a ese correo.")
+
+        if not password or len(password) < 8:
+            errores.append("La contraseña debe tener al menos 8 caracteres.")
+        if password != password2:
+            errores.append("Las contraseñas no coinciden.")
+
+        if not rut or not validar_rut_chileno(rut):
+            errores.append("El RUT ingresado no es válido. Verifica el dígito verificador.")
+        else:
+            rut_fmt = formatear_rut(rut)
+            if PerfilClienteExterno.objects.filter(rut=rut_fmt).exists():
+                errores.append("Este RUT ya tiene una cuenta registrada.")
+
+        if not razon_social:
+            errores.append("La razón social / nombre de empresa es requerida.")
+
+        if errores:
+            for err in errores:
+                messages.error(request, err)
+        else:
+            rut_fmt = formatear_rut(rut)
+            # Crear el usuario desactivado (requiere aprobación)
+            user = User.objects.create_user(
+                username=username,
+                email=email,
+                password=password,
+                first_name=nombre,
+                is_active=True,  # Activo para poder loguear, pero perfil bloqueará acceso
+            )
+            perfil = PerfilClienteExterno.objects.create(
+                user=user,
+                rut=rut_fmt,
+                razon_social=razon_social,
+                telefono=telefono,
+                estado_aprobacion='pendiente',
+            )
+            # Enviar notificación al equipo Bark
+            email_nueva_solicitud_acceso(perfil)
+            messages.success(
+                request,
+                f'¡Solicitud enviada! Tu cuenta quedará activa una vez que el equipo '
+                f'de Maestranza Bark la revise. Te notificaremos por correo a {email}.'
+            )
+            return redirect('portal_login')
+
+    return render(request, 'core/portal_cliente_registro.html')
+
+
+# ── Portal Cliente: Login ─────────────────────────────────────────────────────
+
+def portal_login(request):
+    """Login exclusivo para clientes externos del portal."""
+    if request.user.is_authenticated:
+        if request.user.is_staff:
+            return redirect('project_list')
+        return redirect('portal_dashboard')
+
+    if request.method == 'POST':
+        from .utils_seguridad import formatear_rut
+        username = request.POST.get('username', '').strip()
+        password = request.POST.get('password', '').strip()
+        
+        # Permitir login con RUT
+        user_to_auth = username
+        try:
+            rut_fmt = formatear_rut(username)
+            if rut_fmt:
+                perfil = PerfilClienteExterno.objects.filter(rut=rut_fmt).first()
+                if perfil:
+                    user_to_auth = perfil.user.username
+        except Exception:
+            pass
+            
+        user = authenticate(request, username=user_to_auth, password=password)
+        
+        if user:
+            # Rechazar login de staff por esta ruta (deben usar /login/)
+            if user.is_staff:
+                messages.error(request, 'Usa el acceso interno de Bark en /login/')
+                return redirect('login')
+            auth_login(request, user)
+            return redirect(request.GET.get('next', 'portal_dashboard'))
+        else:
+            messages.error(request, 'Usuario o contraseña incorrectos.')
+
+    return render(request, 'core/portal_cliente_login.html')
+
+
+# ── Portal Cliente: Dashboard ─────────────────────────────────────────────────
+
+@requiere_cliente_aprobado
+def portal_dashboard(request):
+    """Dashboard del cliente: muestra sus OCs con estados."""
+    perfil = request.user.perfil_cliente_externo
+    ocs = OrdenCompraCliente.objects.filter(cliente=perfil).order_by('-creado_en')
+
+    # Contadores por estado
+    stats = {
+        'total': ocs.count(),
+        'pendientes': ocs.filter(estado='pendiente').count(),
+        'aceptadas': ocs.filter(estado='aceptada').count(),
+        'rechazadas': ocs.filter(estado='rechazada').count(),
+        'borradores': ocs.filter(estado='borrador').count(),
+    }
+
+    return render(request, 'core/portal_cliente_dashboard.html', {
+        'perfil': perfil,
+        'ocs': ocs,
+        'stats': stats,
+    })
+
+
+# ── Portal Cliente: Nueva OC ──────────────────────────────────────────────────
+
+@requiere_cliente_aprobado
+def portal_nueva_oc(request):
+    """Formulario para que el cliente envíe una nueva OC."""
+    perfil = request.user.perfil_cliente_externo
+
+    if request.method == 'POST':
+        numero_oc = request.POST.get('numero_oc', '').strip()
+        monto_raw = request.POST.get('monto_total', '').strip()
+        descripcion = request.POST.get('descripcion', '').strip()
+        archivo = request.FILES.get('archivo_oc')
+        accion = request.POST.get('accion', 'enviar')  # 'borrador' o 'enviar'
+
+        errores = []
+        if not numero_oc:
+            errores.append("El número de OC es requerido.")
+        elif OrdenCompraCliente.objects.filter(numero_oc=numero_oc).exists():
+            errores.append(f"Ya existe una OC con el número {numero_oc}.")
+        if not archivo:
+            errores.append("Debes adjuntar el archivo PDF de tu OC.")
+
+        try:
+            monto = Decimal(monto_raw.replace(',', '').replace('$', '').replace('.', '').replace(' ', '')) if monto_raw else None
+        except Exception:
+            monto = None
+            if monto_raw:
+                errores.append("El monto ingresado no es válido.")
+
+        if errores:
+            for err in errores:
+                messages.error(request, err)
+        else:
+            estado = 'borrador' if accion == 'borrador' else 'pendiente'
+            oc = OrdenCompraCliente.objects.create(
+                numero_oc=numero_oc,
+                cliente=perfil,
+                archivo_oc=archivo,
+                descripcion=descripcion,
+                monto_total=monto,
+                estado=estado,
+                fecha_envio=timezone.now() if estado == 'pendiente' else None,
+            )
+            if estado == 'pendiente':
+                email_oc_recibida(oc)
+                messages.success(request, f'OC #{numero_oc} enviada correctamente. Recibirás una respuesta por email.')
+            else:
+                messages.success(request, f'OC #{numero_oc} guardada como borrador.')
+            return redirect('portal_dashboard')
+
+    return render(request, 'core/portal_cliente_oc_nueva.html', {'perfil': perfil})
+
+
+# ── Portal Cliente: Detalle OC ────────────────────────────────────────────────
+
+@requiere_cliente_aprobado
+def portal_oc_detail(request, oc_id):
+    """Detalle de una OC. Solo puede verla el dueño (Row-level security)."""
+    perfil = request.user.perfil_cliente_externo
+    # Seguridad: get_object_or_404 con filtro de cliente — si es de otro, devuelve 404
+    oc = get_object_or_404(OrdenCompraCliente, id=oc_id, cliente=perfil)
+
+    if request.method == 'POST' and oc.estado == 'borrador':
+        # Permitir enviar un borrador
+        oc.estado = 'pendiente'
+        oc.fecha_envio = timezone.now()
+        oc.save()
+        email_oc_recibida(oc)
+        messages.success(request, f'OC #{oc.numero_oc} enviada para revisión.')
+        return redirect('portal_dashboard')
+
+    return render(request, 'core/portal_cliente_oc_detail.html', {'oc': oc, 'perfil': perfil})
+
+
+# ── Staff Bark: Bandeja de OCs ────────────────────────────────────────────────
+
+@requiere_staff_bark
+def oc_clientes_bandeja(request):
+    """Dashboard interno: todas las OCs recibidas de clientes externos."""
+    filtro_estado = request.GET.get('estado', '')
+    qs = OrdenCompraCliente.objects.select_related('cliente__user').order_by('-creado_en')
+    if filtro_estado:
+        qs = qs.filter(estado=filtro_estado)
+
+    # Contadores para los tabs
+    contadores = {
+        'todos': OrdenCompraCliente.objects.count(),
+        'pendiente': OrdenCompraCliente.objects.filter(estado='pendiente').count(),
+        'aceptada': OrdenCompraCliente.objects.filter(estado='aceptada').count(),
+        'rechazada': OrdenCompraCliente.objects.filter(estado='rechazada').count(),
+        'borrador': OrdenCompraCliente.objects.filter(estado='borrador').count(),
+    }
+
+    return render(request, 'core/oc_clientes_bandeja.html', {
+        'ocs': qs,
+        'filtro_estado': filtro_estado,
+        'contadores': contadores,
+    })
+
+
+# ── Staff Bark: Aceptar OC ────────────────────────────────────────────────────
+
+@requiere_staff_bark
+def oc_cliente_aceptar(request, oc_id):
+    """Acepta una OC de cliente externo y notifica por email."""
+    oc = get_object_or_404(OrdenCompraCliente, id=oc_id)
+    if request.method == 'POST':
+        if oc.estado not in ('pendiente', 'borrador'):
+            messages.warning(request, 'Esta OC ya fue procesada.')
+            return redirect('oc_clientes_bandeja')
+        oc.estado = 'aceptada'
+        oc.fecha_decision = timezone.now()
+        oc.revisado_por = request.user
+        oc.observaciones_bark = request.POST.get('observaciones', '').strip()
+        oc.save()
+        email_oc_aceptada(oc)
+        messages.success(request, f'OC #{oc.numero_oc} ACEPTADA. Se notificó al cliente.')
+    return redirect('oc_clientes_bandeja')
+
+
+# ── Staff Bark: Rechazar OC ───────────────────────────────────────────────────
+
+@requiere_staff_bark
+def oc_cliente_rechazar(request, oc_id):
+    """Rechaza una OC con observaciones y notifica por email al cliente."""
+    oc = get_object_or_404(OrdenCompraCliente, id=oc_id)
+    if request.method == 'POST':
+        if oc.estado not in ('pendiente', 'borrador'):
+            messages.warning(request, 'Esta OC ya fue procesada.')
+            return redirect('oc_clientes_bandeja')
+        oc.estado = 'rechazada'
+        oc.fecha_decision = timezone.now()
+        oc.revisado_por = request.user
+        oc.observaciones_bark = request.POST.get('observaciones', '').strip()
+        oc.save()
+        email_oc_rechazada(oc)
+        messages.success(request, f'OC #{oc.numero_oc} RECHAZADA. Se notificó al cliente.')
+    return redirect('oc_clientes_bandeja')
+
+
+# ── Staff Bark: Solicitudes de Acceso ────────────────────────────────────────
+
+@requiere_staff_bark
+def solicitudes_acceso_lista(request):
+    """Lista de clientes que solicitaron acceso al portal."""
+    filtro = request.GET.get('estado', 'pendiente')
+    perfiles = PerfilClienteExterno.objects.select_related('user').order_by('-fecha_solicitud')
+    if filtro:
+        perfiles = perfiles.filter(estado_aprobacion=filtro)
+
+    contadores = {
+        'pendiente': PerfilClienteExterno.objects.filter(estado_aprobacion='pendiente').count(),
+        'aprobado': PerfilClienteExterno.objects.filter(estado_aprobacion='aprobado').count(),
+        'rechazado': PerfilClienteExterno.objects.filter(estado_aprobacion='rechazado').count(),
+    }
+    
+    # ── Empleados Staff ──
+    staff_estado = request.GET.get('staff_estado', 'pendiente')  # pendiente (is_active=False) o aprobado (is_active=True)
+    staff_qs = User.objects.filter(is_staff=True, is_superuser=False).order_by('-date_joined')
+    if staff_estado == 'pendiente':
+        staff_qs = staff_qs.filter(is_active=False)
+    else:
+        staff_qs = staff_qs.filter(is_active=True)
+        
+    staff_contadores = {
+        'pendiente': User.objects.filter(is_staff=True, is_superuser=False, is_active=False).count(),
+        'aprobado': User.objects.filter(is_staff=True, is_superuser=False, is_active=True).count(),
+    }
+
+    return render(request, 'core/solicitudes_acceso_lista.html', {
+        'perfiles': perfiles,
+        'filtro': filtro,
+        'contadores': contadores,
+        'staff_qs': staff_qs,
+        'staff_estado': staff_estado,
+        'staff_contadores': staff_contadores,
+    })
+
+
+# ── Staff Bark: Aprobar Acceso Cliente ───────────────────────────────────────
+
+@requiere_staff_bark
+def aprobar_cliente(request, perfil_id):
+    """Aprueba el acceso de un cliente al portal."""
+    perfil = get_object_or_404(PerfilClienteExterno, id=perfil_id)
+    if request.method == 'POST':
+        perfil.estado_aprobacion = 'aprobado'
+        perfil.fecha_decision = timezone.now()
+        perfil.observaciones_rechazo = ''
+        perfil.save()
+        email_acceso_aprobado(perfil)
+        messages.success(request, f'Acceso de {perfil.razon_social} APROBADO. Se notificó por email.')
+    return redirect('solicitudes_acceso_lista')
+
+
+# ── Staff Bark: Aprobar Acceso Empleado (Staff) ──────────────────────────────
+
+@requiere_staff_bark
+def aprobar_staff(request, user_id):
+    """Aprueba (activa) el acceso de un empleado al sistema interno."""
+    from django.contrib.auth.models import User
+    empleado = get_object_or_404(User, id=user_id, is_staff=True)
+    if request.method == 'POST':
+        empleado.is_active = True
+        empleado.save()
+        from .emails import email_staff_acceso_aprobado
+        email_staff_acceso_aprobado(empleado)
+        messages.success(request, f'Acceso de Empleado {empleado.first_name} APROBADO y cuenta activada.')
+    # Preserve the active tab
+    return redirect(request.build_absolute_uri() if 'staff_estado' in request.META.get('HTTP_REFERER', '') else '/oc-clientes/accesos/?tab=staff')
+
+
+# ── Staff Bark: Rechazar Acceso Cliente ──────────────────────────────────────
+
+@requiere_staff_bark
+def rechazar_cliente(request, perfil_id):
+    """Rechaza el acceso de un cliente con un motivo."""
+    perfil = get_object_or_404(PerfilClienteExterno, id=perfil_id)
+    if request.method == 'POST':
+        motivo = request.POST.get('motivo', '').strip()
+        perfil.estado_aprobacion = 'rechazado'
+        perfil.fecha_decision = timezone.now()
+        perfil.observaciones_rechazo = motivo
+        perfil.save()
+        email_acceso_rechazado(perfil)
+        messages.success(request, f'Acceso de {perfil.razon_social} RECHAZADO.')
+    return redirect('solicitudes_acceso_lista')
+
+
+# ── Staff Bark: Gestionar Accesos Existentes ─────────────────────────────────
+
+@requiere_staff_bark
+def bloquear_cliente(request, perfil_id):
+    """Bloquea o desbloquea (desactiva el User) a un cliente aprobado."""
+    perfil = get_object_or_404(PerfilClienteExterno, id=perfil_id)
+    if request.method == 'POST':
+        user = perfil.user
+        # Alternar
+        user.is_active = not user.is_active
+        user.save()
+        estado = "DESBLOQUEADO" if user.is_active else "BLOQUEADO"
+        messages.success(request, f'Acceso de {perfil.razon_social} {estado} correctamente.')
+    return redirect('solicitudes_acceso_lista')
+
+@requiere_staff_bark
+def eliminar_cliente(request, perfil_id):
+    """Elimina definitivamente un cliente y su usuario (elimina OCs en cascada)."""
+    perfil = get_object_or_404(PerfilClienteExterno, id=perfil_id)
+    if request.method == 'POST':
+        razon_social = perfil.razon_social
+        # Eliminar el user eliminará en cascada el perfil y sus OCs
+        perfil.user.delete()
+        messages.success(request, f'El cliente {razon_social} y todos sus datos han sido eliminados del sistema.')
+    return redirect('solicitudes_acceso_lista')
+
+@requiere_staff_bark
+def editar_cliente(request, perfil_id):
+    """Permite al staff editar credenciales y datos de un cliente."""
+    perfil = get_object_or_404(PerfilClienteExterno, id=perfil_id)
+    if request.method == 'POST':
+        user = perfil.user
+        username = request.POST.get('username', '').strip()
+        email = request.POST.get('email', '').strip()
+        rut = request.POST.get('rut', '').strip()
+        razon_social = request.POST.get('razon_social', '').strip()
+        password = request.POST.get('password', '').strip()
+
+        # Validaciones simples (sin validación exhaustiva de RUT por rapidez del staff)
+        if User.objects.filter(username=username).exclude(id=user.id).exists():
+            messages.error(request, 'El nombre de usuario ya existe para otra cuenta.')
+            return redirect('solicitudes_acceso_lista')
+        if User.objects.filter(email=email).exclude(id=user.id).exists():
+            messages.error(request, 'El correo electrónico ya existe para otra cuenta.')
+            return redirect('solicitudes_acceso_lista')
+        
+        # Guardar User
+        user.username = username
+        user.email = email
+        if password:
+            user.set_password(password)
+        user.save()
+
+        # Guardar Perfil
+        perfil.rut = formatear_rut(rut) if rut else perfil.rut
+        perfil.razon_social = razon_social
+        perfil.save()
+
+        messages.success(request, f'Datos de {razon_social} actualizados correctamente.')
+    return redirect('solicitudes_acceso_lista')
+
+
+# ── Staff Bark: Gestionar Empleados Existentes ────────────────────────AAAAAA
+
+@requiere_staff_bark
+def bloquear_staff(request, user_id):
+    """Bloquea o desbloquea (desactiva el User) a un empleado aprobado."""
+    from django.contrib.auth.models import User
+    empleado = get_object_or_404(User, id=user_id, is_staff=True)
+    if request.method == 'POST':
+        empleado.is_active = not empleado.is_active
+        empleado.save()
+        estado = "DESBLOQUEADO" if empleado.is_active else "BLOQUEADO"
+        messages.success(request, f'Acceso de Empleado {empleado.first_name} {estado} correctamente.')
+    return redirect(request.build_absolute_uri() if 'staff_estado' in request.META.get('HTTP_REFERER', '') else '/oc-clientes/accesos/?tab=staff')
+
+@requiere_staff_bark
+def eliminar_staff(request, user_id):
+    """Elimina definitivamente un empleado del sistema."""
+    from django.contrib.auth.models import User
+    empleado = get_object_or_404(User, id=user_id, is_staff=True)
+    # Evitar que el admin se borre a sí mismo
+    if empleado.id == request.user.id:
+        messages.error(request, 'No puedes eliminar tu propia cuenta activamente en uso.')
+        return redirect(request.build_absolute_uri() if 'staff_estado' in request.META.get('HTTP_REFERER', '') else '/oc-clientes/accesos/?tab=staff')
+        
+    if request.method == 'POST':
+        nombre = empleado.first_name or empleado.username
+        empleado.delete()
+        messages.success(request, f'El empleado {nombre} ha sido eliminado del sistema.')
+    return redirect(request.build_absolute_uri() if 'staff_estado' in request.META.get('HTTP_REFERER', '') else '/oc-clientes/accesos/?tab=staff')
+
+@requiere_staff_bark
+def editar_staff(request, user_id):
+    """Permite editar credenciales y datos de un empleado (Staff)."""
+    from django.contrib.auth.models import User
+    empleado = get_object_or_404(User, id=user_id, is_staff=True)
+    if request.method == 'POST':
+        username = request.POST.get('username', '').strip()
+        email = request.POST.get('email', '').strip()
+        first_name = request.POST.get('first_name', '').strip()
+        rut = request.POST.get('rut', '').strip()
+        password = request.POST.get('password', '').strip()
+        from .utils_seguridad import validar_rut_chileno, formatear_rut
+
+        if User.objects.filter(username=username).exclude(id=empleado.id).exists():
+            messages.error(request, 'El nombre de usuario ya existe para otra cuenta.')
+        elif User.objects.filter(email=email).exclude(id=empleado.id).exists():
+            messages.error(request, 'El correo electrónico ya existe para otra cuenta.')
+        else:
+            rut_fmt = empleado.last_name
+            if rut:
+                if not validar_rut_chileno(rut):
+                    messages.error(request, 'El RUT ingresado no es válido (revisa el dígito verificador).')
+                    return redirect(request.build_absolute_uri() if 'staff_estado' in request.META.get('HTTP_REFERER', '') else '/oc-clientes/accesos/?tab=staff')
+                rut_fmt = formatear_rut(rut)
+                if User.objects.filter(last_name=rut_fmt).exclude(id=empleado.id).exists():
+                    messages.error(request, 'Este RUT ya se encuentra registrado para otro empleado.')
+                    return redirect(request.build_absolute_uri() if 'staff_estado' in request.META.get('HTTP_REFERER', '') else '/oc-clientes/accesos/?tab=staff')
+
+            empleado.username = username
+            empleado.email = email
+            empleado.first_name = first_name
+            empleado.last_name = rut_fmt
+            if password:
+                empleado.set_password(password)
+            empleado.save()
+            messages.success(request, f'Datos del empleado {first_name} actualizados correctamente.')
+            
+    return redirect(request.build_absolute_uri() if 'staff_estado' in request.META.get('HTTP_REFERER', '') else '/oc-clientes/accesos/?tab=staff')
+
+
+# ── Staff Bark: Configuración de Correos ─────────────────────────────────────
+
+@requiere_staff_bark
+def oc_clientes_config(request):
+    """
+    Permite al equipo Bark configurar los correos que reciben
+    notificaciones de nuevas OCs, sin tocar el código fuente.
+    """
+    config = ConfiguracionSistema.get_instancia()
+
+    if request.method == 'POST':
+        correos = request.POST.get('correos_notificacion_oc', '').strip()
+        nombre_remitente = request.POST.get('correo_remitente_display', '').strip()
+        config.correos_notificacion_oc = correos
+        if nombre_remitente:
+            config.correo_remitente_display = nombre_remitente
+        config.save()
+        messages.success(request, 'Configuración de correos guardada correctamente.')
+        return redirect('oc_clientes_config')
+
+    # Preparar lista de correos para visualización
+    lista_correos = config.get_lista_correos()
+
+    return render(request, 'core/oc_clientes_config.html', {
+        'config': config,
+        'lista_correos': lista_correos,
+    })
