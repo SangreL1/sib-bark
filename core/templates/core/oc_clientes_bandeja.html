@@ -11,6 +11,7 @@
     </h1>
     <p style="color:var(--txt-3);font-size:13px;margin:4px 0 0;">Órdenes de compra recibidas desde el portal externo</p>
   </div>
+  {% if user.is_superuser %}
   <div class="d-flex gap-2 flex-wrap">
     <a href="{% url 'solicitudes_acceso_lista' %}" class="btn btn-sm" style="background:var(--card);border:1px solid var(--border);">
       <i data-lucide="users" style="width:14px;height:14px;"></i> Solicitudes de Acceso
@@ -20,6 +21,7 @@
       <i data-lucide="settings" style="width:14px;height:14px;"></i> Config. Correos
     </a>
   </div>
+  {% endif %}
 </div>
 
 <!-- Resumen rápido -->

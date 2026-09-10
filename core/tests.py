@@ -449,5 +449,20 @@ class UsuariosYRUTTests(TestCase):
         self.assertEqual(oc.factura_link, "https://drive.google.com/factura/123")
         self.assertEqual(oc.guia_link, "https://drive.google.com/guia/456")
 
+    def test_personal_staff_no_accede_a_administracion(self):
+        # 1. El empleado (Personal Staff, is_staff=True, is_superuser=False) no debe poder acceder a /usuarios/
+        self.client.login(username='151234567', password='Password123!')
+        res_usuarios = self.client.get(reverse('gestion_usuarios'))
+        self.assertEqual(res_usuarios.status_code, 403)
+
+        res_config = self.client.get(reverse('oc_clientes_config'))
+        self.assertEqual(res_config.status_code, 403)
+        self.client.logout()
+
+        # 2. El administrador (is_superuser=True) sí puede acceder
+        self.client.login(username='superadmin', password='Password123!')
+        res_admin = self.client.get(reverse('gestion_usuarios'))
+        self.assertEqual(res_admin.status_code, 200)
+
 
 

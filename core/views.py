@@ -2979,6 +2979,22 @@ def requiere_staff_bark(view_func):
     return wrapper
 
 
+def requiere_admin_bark(view_func):
+    """Solo permite acceso a administradores generales (is_superuser=True)."""
+    @wraps(view_func)
+    def wrapper(request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return redirect(f'/login/?next={request.path}')
+        if not request.user.is_superuser:
+            from django.http import HttpResponseForbidden
+            return HttpResponseForbidden(
+                '<h1>403 - Acceso Denegado</h1>'
+                '<p>Esta sección administrativa es exclusiva para administradores de Maestranza Bark.</p>'
+            )
+        return view_func(request, *args, **kwargs)
+    return wrapper
+
+
 def requiere_cliente_aprobado(view_func):
     """Solo permite acceso a clientes con perfil externo APROBADO."""
     @wraps(view_func)
@@ -3305,7 +3321,7 @@ def oc_cliente_rechazar(request, oc_id):
 
 # ── Staff Bark: Solicitudes de Acceso ────────────────────────────────────────
 
-@requiere_staff_bark
+@requiere_admin_bark
 def solicitudes_acceso_lista(request):
     """Lista de clientes que solicitaron acceso al portal."""
     filtro = request.GET.get('estado', 'pendiente')
@@ -3359,7 +3375,7 @@ def solicitudes_acceso_lista(request):
 
 # ── Staff Bark: Aprobar Acceso Cliente ───────────────────────────────────────
 
-@requiere_staff_bark
+@requiere_admin_bark
 def aprobar_cliente(request, perfil_id):
     """Aprueba el acceso de un cliente al portal."""
     perfil = get_object_or_404(PerfilClienteExterno, id=perfil_id)
@@ -3375,7 +3391,7 @@ def aprobar_cliente(request, perfil_id):
 
 # ── Staff Bark: Aprobar Acceso Empleado (Staff) ──────────────────────────────
 
-@requiere_staff_bark
+@requiere_admin_bark
 def aprobar_staff(request, user_id):
     """Aprueba (activa) el acceso de un empleado al sistema interno."""
     from django.contrib.auth.models import User
@@ -3392,7 +3408,7 @@ def aprobar_staff(request, user_id):
 
 # ── Staff Bark: Rechazar Acceso Cliente ──────────────────────────────────────
 
-@requiere_staff_bark
+@requiere_admin_bark
 def rechazar_cliente(request, perfil_id):
     """Rechaza el acceso de un cliente con un motivo."""
     perfil = get_object_or_404(PerfilClienteExterno, id=perfil_id)
@@ -3409,7 +3425,7 @@ def rechazar_cliente(request, perfil_id):
 
 # ── Staff Bark: Gestionar Accesos Existentes ─────────────────────────────────
 
-@requiere_staff_bark
+@requiere_admin_bark
 def bloquear_cliente(request, perfil_id):
     """Bloquea o desbloquea (desactiva el User) a un cliente aprobado."""
     perfil = get_object_or_404(PerfilClienteExterno, id=perfil_id)
@@ -3422,7 +3438,7 @@ def bloquear_cliente(request, perfil_id):
         messages.success(request, f'Acceso de {perfil.razon_social} {estado} correctamente.')
     return redirect('solicitudes_acceso_lista')
 
-@requiere_staff_bark
+@requiere_admin_bark
 def eliminar_cliente(request, perfil_id):
     """Elimina definitivamente un cliente y su usuario (elimina OCs en cascada)."""
     perfil = get_object_or_404(PerfilClienteExterno, id=perfil_id)
@@ -3433,7 +3449,7 @@ def eliminar_cliente(request, perfil_id):
         messages.success(request, f'El cliente {razon_social} y todos sus datos han sido eliminados del sistema.')
     return redirect('solicitudes_acceso_lista')
 
-@requiere_staff_bark
+@requiere_admin_bark
 def editar_cliente(request, perfil_id):
     """Permite al staff editar credenciales y datos de un cliente."""
     perfil = get_object_or_404(PerfilClienteExterno, id=perfil_id)
@@ -3482,7 +3498,7 @@ def _redirect_staff_referer(request, default_tab='staff'):
     return redirect(f'/usuarios/?tab={default_tab}')
 
 
-@requiere_staff_bark
+@requiere_admin_bark
 def crear_staff(request):
     """Permite al administrador crear un empleado directamente desde el panel."""
     from django.contrib.auth.models import User
@@ -3541,7 +3557,7 @@ def crear_staff(request):
 
 # ── Staff Bark: Gestionar Empleados Existentes ────────────────────────
 
-@requiere_staff_bark
+@requiere_admin_bark
 def bloquear_staff(request, user_id):
     """Bloquea o desbloquea (desactiva el User) a un empleado aprobado."""
     from django.contrib.auth.models import User
@@ -3557,7 +3573,7 @@ def bloquear_staff(request, user_id):
         messages.success(request, f'Acceso de empleado {empleado.first_name} {estado} correctamente.')
     return _redirect_staff_referer(request)
 
-@requiere_staff_bark
+@requiere_admin_bark
 def eliminar_staff(request, user_id):
     """Elimina definitivamente un empleado del sistema de forma segura."""
     from django.contrib.auth.models import User
@@ -3577,7 +3593,7 @@ def eliminar_staff(request, user_id):
         messages.success(request, f'El empleado {nombre} ha sido eliminado del sistema.')
     return _redirect_staff_referer(request)
 
-@requiere_staff_bark
+@requiere_admin_bark
 def editar_staff(request, user_id):
     """Permite editar credenciales y datos de un empleado (Staff)."""
     from django.contrib.auth.models import User
@@ -3626,7 +3642,7 @@ def editar_staff(request, user_id):
 
 # ── Staff Bark: Configuración de Correos ─────────────────────────────────────
 
-@requiere_staff_bark
+@requiere_admin_bark
 def oc_clientes_config(request):
     """
     Permite al equipo Bark configurar los correos que reciben
