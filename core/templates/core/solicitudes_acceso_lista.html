@@ -1,52 +1,61 @@
 {% extends 'core/base.html' %}
 {% load static %}
-{% block title %}Solicitudes de Acceso — Portal OC Clientes{% endblock %}
+{% block title %}Gestión de Usuarios y Personal — SIB Bark{% endblock %}
 
 {% block content %}
-<div class="mb-4">
-  <a href="{% url 'oc_clientes_bandeja' %}" style="color:var(--blue);text-decoration:none;font-size:13px;">
-    <i data-lucide="arrow-left" style="width:14px;height:14px;"></i> Volver a Bandeja
+<div class="mb-3">
+  <a href="{% url 'project_list' %}" style="color:var(--blue);text-decoration:none;font-size:13px;display:inline-flex;align-items:center;gap:6px;">
+    <i data-lucide="arrow-left" style="width:14px;height:14px;"></i> Volver a Proyectos
   </a>
 </div>
 
-<div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+<div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-3">
   <div>
-    <h1 style="font-size:1.3rem;font-weight:700;margin:0;">
-      <i data-lucide="users" style="width:20px;height:20px;margin-right:8px;color:var(--blue);"></i>
-      Solicitudes de Acceso al Portal
+    <h1 style="font-size:1.4rem;font-weight:700;margin:0;display:flex;align-items:center;gap:10px;">
+      <i data-lucide="users-round" style="width:24px;height:24px;color:var(--blue);"></i>
+      Gestión de Usuarios y Accesos
     </h1>
-    <p style="color:var(--txt-3);font-size:13px;margin:4px 0 0;">Empresas que solicitaron acceso para enviar OCs</p>
+    <p style="color:var(--txt-3);font-size:13px;margin:4px 0 0;">Administra el personal interno de Maestranza Bark y los accesos de clientes al portal B2B.</p>
+  </div>
+
+  <div class="d-flex align-items-center gap-2">
+    <!-- Botón para crear nuevo empleado directamente -->
+    <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalNuevoEmpleado" style="gap:6px;padding:6px 14px;font-weight:600;">
+      <i data-lucide="user-plus" style="width:15px;height:15px;"></i> + Nuevo Empleado
+    </button>
   </div>
 </div>
 
-</div>
-
-<!-- Pestañas Principales (Clientes vs Staff) -->
+<!-- Pestañas Principales (Personal Bark vs Clientes) -->
 <ul class="nav nav-tabs mb-4" style="border-bottom-color:var(--border);">
   <li class="nav-item">
-    <a class="nav-link {% if request.GET.tab != 'staff' %}active{% endif %}" href="?tab=clientes&estado=pendiente"
-       style="{% if request.GET.tab != 'staff' %}background:var(--card);border-color:var(--border);border-bottom-color:transparent;color:var(--txt-1);font-weight:600;{% else %}color:var(--txt-3);{% endif %}">
-       🏢 Proveedores / Clientes
+    <a class="nav-link {% if request.GET.tab == 'staff' or not request.GET.tab %}active{% endif %}" href="?tab=staff"
+       style="{% if request.GET.tab == 'staff' or not request.GET.tab %}background:var(--card);border-color:var(--border);border-bottom-color:transparent;color:var(--txt);font-weight:600;{% else %}color:var(--txt-3);{% endif %}">
+       💼 Personal Bark ({{ staff_contadores.todos }})
     </a>
   </li>
   <li class="nav-item">
-    <a class="nav-link {% if request.GET.tab == 'staff' %}active{% endif %}" href="?tab=staff&staff_estado=pendiente"
-       style="{% if request.GET.tab == 'staff' %}background:var(--card);border-color:var(--border);border-bottom-color:transparent;color:var(--txt-1);font-weight:600;{% else %}color:var(--txt-3);{% endif %}">
-       💼 Personal Bark (Staff)
+    <a class="nav-link {% if request.GET.tab == 'clientes' %}active{% endif %}" href="?tab=clientes&estado=pendiente"
+       style="{% if request.GET.tab == 'clientes' %}background:var(--card);border-color:var(--border);border-bottom-color:transparent;color:var(--txt);font-weight:600;{% else %}color:var(--txt-3);{% endif %}">
+       🏢 Proveedores / Clientes ({% widthratio contadores.pendiente|add:contadores.aprobado 1 1 %})
     </a>
   </li>
 </ul>
 
-{% if request.GET.tab != 'staff' %}
+{% if request.GET.tab == 'clientes' %}
+<!-- ============================================== -->
+<!-- CLIENTES Y PROVEEDORES EXTERNOS -->
+<!-- ============================================== -->
+
 <!-- Tabs de estado Clientes -->
 <div class="mb-3 d-flex gap-2 flex-wrap">
-  <a href="?estado=pendiente" class="btn btn-sm {% if filtro == 'pendiente' %}btn-warning{% else %}btn-outline-warning{% endif %}">
+  <a href="?tab=clientes&estado=pendiente" class="btn btn-sm {% if filtro == 'pendiente' %}btn-warning{% else %}btn-outline-warning{% endif %}">
     🟡 Pendientes ({{ contadores.pendiente }})
   </a>
-  <a href="?estado=aprobado" class="btn btn-sm {% if filtro == 'aprobado' %}btn-success{% else %}btn-outline-success{% endif %}">
+  <a href="?tab=clientes&estado=aprobado" class="btn btn-sm {% if filtro == 'aprobado' %}btn-success{% else %}btn-outline-success{% endif %}">
     🟢 Aprobados ({{ contadores.aprobado }})
   </a>
-  <a href="?estado=rechazado" class="btn btn-sm {% if filtro == 'rechazado' %}btn-danger{% else %}btn-outline-danger{% endif %}">
+  <a href="?tab=clientes&estado=rechazado" class="btn btn-sm {% if filtro == 'rechazado' %}btn-danger{% else %}btn-outline-danger{% endif %}">
     🔴 Rechazados ({{ contadores.rechazado }})
   </a>
 </div>
@@ -94,56 +103,32 @@
               {% if not perfil.user.is_active %}
                 <span class="badge bg-danger">BLOQUEADO</span>
               {% endif %}
-              <!-- Desplegable de acciones -->
-              <div class="dropdown">
-                <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="dropdown" style="padding:4px 8px;">
-                  ...
+              <!-- Bloquear / Desbloquear -->
+              <form method="post" action="{% url 'bloquear_cliente' perfil.id %}" class="d-inline">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-sm {% if perfil.user.is_active %}btn-outline-warning{% else %}btn-outline-success{% endif %}"
+                        title="{% if perfil.user.is_active %}Bloquear Acceso{% else %}Desbloquear Acceso{% endif %}">
+                  <i data-lucide="{% if perfil.user.is_active %}lock{% else %}unlock{% endif %}" style="width:13px;height:13px;"></i>
                 </button>
-                <ul class="dropdown-menu dropdown-menu-end" style="font-size:13px;background:var(--card);border:1px solid var(--border);">
-                  <li>
-                    <a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#modalEditar{{ perfil.id }}" style="color:var(--txt-1);">
-                      <i data-lucide="edit-2" style="width:14px;height:14px;margin-right:6px;"></i> Editar Datos
-                    </a>
-                  </li>
-                  <li>
-                    <form method="post" action="{% url 'bloquear_cliente' perfil.id %}">
-                      {% csrf_token %}
-                      <button type="submit" class="dropdown-item" style="color:var(--txt-1);">
-                        {% if perfil.user.is_active %}
-                          <i data-lucide="lock" style="width:14px;height:14px;margin-right:6px;"></i> Bloquear Acceso
-                        {% else %}
-                          <i data-lucide="unlock" style="width:14px;height:14px;margin-right:6px;"></i> Desbloquear
-                        {% endif %}
-                      </button>
-                    </form>
-                  </li>
-                  <li><hr class="dropdown-divider" style="border-color:var(--border);"></li>
-                  <li>
-                    <a class="dropdown-item text-danger" href="#" data-bs-toggle="modal" data-bs-target="#modalEliminar{{ perfil.id }}">
-                      <i data-lucide="trash-2" style="width:14px;height:14px;margin-right:6px;"></i> Eliminar Definitivamente
-                    </a>
-                  </li>
-                </ul>
-              </div>
+              </form>
+              <!-- Editar -->
+              <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#modalEditar{{ perfil.id }}" title="Editar datos">
+                <i data-lucide="edit" style="width:13px;height:13px;"></i>
+              </button>
+              <!-- Eliminar -->
+              <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#modalEliminar{{ perfil.id }}" title="Eliminar cliente">
+                <i data-lucide="trash-2" style="width:13px;height:13px;"></i>
+              </button>
             </div>
             {% else %}
-            <span style="color:#ef4444;font-size:12px;">❌ Rechazado el {{ perfil.fecha_decision|date:"d/m/Y" }}</span>
-            <div class="d-flex align-items-center justify-content-end gap-1 mt-1">
-              <a href="#" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#modalEliminar{{ perfil.id }}" style="padding:2px 6px;font-size:11px;">
-                Eliminar
-              </a>
-            </div>
-            {% if perfil.observaciones_rechazo %}
-            <div style="font-size:11px;color:var(--txt-3);max-width:200px;">{{ perfil.observaciones_rechazo|truncatechars:60 }}</div>
-            {% endif %}
+            <span class="badge bg-secondary">Rechazado</span>
             {% endif %}
           </td>
         </tr>
         {% empty %}
         <tr>
-          <td colspan="7" style="text-align:center;padding:40px;color:var(--txt-3);">
-            <i data-lucide="user-check" style="width:32px;height:32px;display:block;margin:0 auto 8px;"></i>
-            No hay solicitudes {{ filtro }} en este momento.
+          <td colspan="7" class="text-center py-4" style="color:var(--txt-3);">
+            No hay solicitudes en esta categoría.
           </td>
         </tr>
         {% endfor %}
@@ -152,24 +137,20 @@
   </div>
 </div>
 
-<!-- Modales rechazo de acceso -->
-<!-- Modales de rechazo -->
 {% for perfil in perfiles %}
-{% if perfil.estado_aprobacion == 'pendiente' %}
+<!-- Modal Rechazar -->
 <div class="modal fade" id="modalRechazarAcceso{{ perfil.id }}" tabindex="-1">
   <div class="modal-dialog">
     <div class="modal-content" style="background:var(--card);border:1px solid var(--border);">
       <div class="modal-header" style="border-bottom:1px solid var(--border);">
-        <h5 class="modal-title">Rechazar acceso — {{ perfil.razon_social }}</h5>
+        <h5 class="modal-title text-danger">Rechazar Solicitud: {{ perfil.razon_social }}</h5>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
       </div>
       <form method="post" action="{% url 'rechazar_cliente' perfil.id %}">
         {% csrf_token %}
         <div class="modal-body">
-          <p style="color:var(--txt-2);">El cliente <strong>{{ perfil.user.email }}</strong> recibirá un email con el motivo del rechazo.</p>
-          <label class="form-label">Motivo del rechazo</label>
-          <textarea name="motivo" class="form-control" rows="3"
-                    placeholder="Ej: El RUT no coincide con la razón social, empresa no registrada en nuestro sistema, etc."></textarea>
+          <label class="form-label">Motivo del rechazo (se enviará por email al cliente):</label>
+          <textarea name="motivo" class="form-control" rows="3" required placeholder="Ej: No se encontró relación comercial vigente..."></textarea>
         </div>
         <div class="modal-footer" style="border-top:1px solid var(--border);">
           <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
@@ -179,9 +160,8 @@
     </div>
   </div>
 </div>
-{% endif %}
 
-<!-- Modal Editar -->
+<!-- Modal Editar Cliente -->
 <div class="modal fade" id="modalEditar{{ perfil.id }}" tabindex="-1">
   <div class="modal-dialog">
     <div class="modal-content" style="background:var(--card);border:1px solid var(--border);">
@@ -209,10 +189,10 @@
               <label class="form-label">Razón Social</label>
               <input type="text" name="razon_social" class="form-control" value="{{ perfil.razon_social }}" required>
             </div>
-            <div class="col-12 mt-3 pt-3 border-top" style="border-color:var(--border)!important;">
+            <div class="col-12 mt-2 pt-2 border-top" style="border-color:var(--border)!important;">
               <label class="form-label text-warning"><i data-lucide="key" style="width:14px;height:14px;"></i> Cambiar Contraseña</label>
               <input type="password" name="password" class="form-control" placeholder="Dejar en blanco para mantener la actual">
-              <small class="text-muted d-block mt-1">Si escribes algo aquí, la contraseña original será sobreescrita.</small>
+              <small class="text-muted d-block mt-1">Si escribes algo aquí, la contraseña será reemplazada.</small>
             </div>
           </div>
         </div>
@@ -225,7 +205,7 @@
   </div>
 </div>
 
-<!-- Modal Eliminar -->
+<!-- Modal Eliminar Cliente -->
 <div class="modal fade" id="modalEliminar{{ perfil.id }}" tabindex="-1">
   <div class="modal-dialog">
     <div class="modal-content" style="background:var(--card);border:1px solid var(--border);">
@@ -238,7 +218,7 @@
         <div class="modal-body">
           <p>¿Estás seguro que deseas eliminar permanentemente a <strong>{{ perfil.razon_social }}</strong>?</p>
           <div class="alert alert-danger" style="font-size:13px;">
-            <strong>Advertencia:</strong> Esta acción borrará todas las Órdenes de Compra históricas (OCs, PDFs subidos, etc) vinculadas a este cliente. <strong>Esta acción es irreversible.</strong>
+            <strong>Advertencia:</strong> Esta acción borrará todas las Órdenes de Compra históricas (OCs, PDFs subidos) vinculadas a este cliente. Esta acción es irreversible.
           </div>
         </div>
         <div class="modal-footer" style="border-top:1px solid var(--border);">
@@ -249,52 +229,81 @@
     </div>
   </div>
 </div>
-
 {% endfor %}
 
 {% else %}
 <!-- ============================================== -->
-<!-- STAFF (EMPLEADOS BARK) -->
+<!-- PERSONAL BARK (STAFF / ADMINISTRADORES) -->
 <!-- ============================================== -->
 
-<!-- Tabs de estado Staff -->
-<div class="mb-3 d-flex gap-2 flex-wrap">
-  <a href="?tab=staff&staff_estado=pendiente" class="btn btn-sm {% if staff_estado == 'pendiente' %}btn-warning{% else %}btn-outline-warning{% endif %}">
-    🟡 En Espera ({{ staff_contadores.pendiente }})
-  </a>
-  <a href="?tab=staff&staff_estado=aprobado" class="btn btn-sm {% if staff_estado == 'aprobado' %}btn-success{% else %}btn-outline-success{% endif %}">
-    🟢 Aprobados ({{ staff_contadores.aprobado }})
-  </a>
+<div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+  <!-- Tabs de estado Staff -->
+  <div class="d-flex gap-2 flex-wrap">
+    <a href="?tab=staff&staff_estado=aprobado" class="btn btn-sm {% if staff_estado == 'aprobado' %}btn-success{% else %}btn-outline-success{% endif %}">
+      🟢 Activos ({{ staff_contadores.aprobado }})
+    </a>
+    <a href="?tab=staff&staff_estado=pendiente" class="btn btn-sm {% if staff_estado == 'pendiente' %}btn-warning{% else %}btn-outline-warning{% endif %}">
+      🟡 En Espera ({{ staff_contadores.pendiente }})
+    </a>
+  </div>
+
+  <!-- Buscador en vivo de Staff -->
+  <div style="max-width:320px;width:100%;">
+    <input type="text" id="filtroStaffInput" class="form-control form-control-sm" placeholder="🔍 Filtrar por nombre o RUT..." style="border-radius:20px;">
+  </div>
 </div>
 
 <div class="card" style="border:1px solid var(--border);background:var(--card);">
   <div class="table-responsive">
-    <table class="table table-hover mb-0" style="font-size:13.5px;">
+    <table class="table table-hover mb-0" id="tablaStaff" style="font-size:13.5px;">
       <thead>
         <tr style="border-bottom:1px solid var(--border);">
           <th style="padding:12px 16px;">Nombre Completo</th>
           <th>RUT</th>
-          <th>Usuario</th>
+          <th>Rol</th>
+          <th>Usuario / Acceso</th>
           <th>Email</th>
-          <th>Fecha Registro</th>
+          <th>Estado</th>
+          <th>Registro</th>
           <th style="text-align:right;padding-right:16px;">Acciones</th>
         </tr>
       </thead>
       <tbody>
         {% for empleado in staff_qs %}
-        <tr>
-          <td style="padding:12px 16px;font-weight:600;">{{ empleado.first_name }}</td>
-          <td>{{ empleado.last_name|default:"-" }}</td>
-          <td style="font-family:monospace;">{{ empleado.username }}</td>
+        <tr class="staff-row" data-search="{{ empleado.first_name|lower }} {{ empleado.last_name|lower }} {{ empleado.username|lower }} {{ empleado.email|lower }}">
+          <td style="padding:12px 16px;font-weight:600;">
+            <div class="d-flex align-items-center gap-2">
+              <div style="width:28px;height:28px;border-radius:50%;background:rgba(59,130,246,.15);color:var(--blue);display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;">
+                {{ empleado.first_name|default:empleado.username|slice:":1"|upper }}
+              </div>
+              <span>{{ empleado.first_name|default:empleado.username }}</span>
+            </div>
+          </td>
+          <td style="font-family:monospace;font-weight:600;">{{ empleado.last_name|default:"-" }}</td>
+          <td>
+            {% if empleado.is_superuser %}
+              <span class="badge" style="background:#4338ca;color:#e0e7ff;border:1px solid #6366f1;">Administrador</span>
+            {% else %}
+              <span class="badge" style="background:#1e293b;color:#94a3b8;border:1px solid #334155;">Personal Staff</span>
+            {% endif %}
+          </td>
+          <td style="font-family:monospace;color:var(--txt-2);">{{ empleado.username }}</td>
           <td style="font-size:12px;">{{ empleado.email }}</td>
-          <td style="font-size:12px;color:var(--txt-3);">{{ empleado.date_joined|date:"d/m/Y H:i" }}</td>
+          <td>
+            {% if empleado.is_active %}
+              <span class="badge" style="background:#dcfce7;color:#166534;border:1px solid #bbf7d0;">Activo</span>
+            {% else %}
+              <span class="badge" style="background:#fee2e2;color:#991b1b;border:1px solid #fecaca;">Inactivo</span>
+            {% endif %}
+          </td>
+          <td style="font-size:12px;color:var(--txt-3);">{{ empleado.date_joined|date:"d/m/Y" }}</td>
           <td style="text-align:right;padding-right:16px;">
             {% if staff_estado == 'pendiente' %}
             <!-- Aprobar Empleado -->
             <form method="post" action="{% url 'aprobar_staff' empleado.id %}" class="d-inline">
               {% csrf_token %}
               <button type="submit" class="btn btn-sm btn-success" style="padding:4px 12px;"
-                      onclick="return confirm('¿Aprobar el acceso del empleado {{ empleado.first_name }}? Se le enviará un correo avisando que ya puede usar el sistema.')">
+                      onclick="return confirm('¿Aprobar el acceso de {{ empleado.first_name }}?')">
                 <i data-lucide="check" style="width:13px;height:13px;"></i> Aprobar
               </button>
             </form>
@@ -307,16 +316,11 @@
             {% else %}
             
             <div class="d-flex align-items-center justify-content-end gap-1">
-              {% if empleado.is_active %}
-                <span class="badge me-2" style="background:#dcfce7;color:#166534;border:1px solid #bbf7d0;">Activo</span>
-              {% else %}
-                <span class="badge me-2" style="background:#fee2e2;color:#991b1b;border:1px solid #fecaca;">Bloqueado</span>
-              {% endif %}
-            
               <!-- Bloquear / Desbloquear -->
               <form method="post" action="{% url 'bloquear_staff' empleado.id %}" class="d-inline">
                 {% csrf_token %}
-                <button type="submit" class="btn btn-sm {% if empleado.is_active %}btn-outline-warning{% else %}btn-outline-success{% endif %}" title="{% if empleado.is_active %}Bloquear Acceso{% else %}Desbloquear Acceso{% endif %}">
+                <button type="submit" class="btn btn-sm {% if empleado.is_active %}btn-outline-warning{% else %}btn-outline-success{% endif %}"
+                        title="{% if empleado.is_active %}Bloquear Acceso{% else %}Activar Acceso{% endif %}">
                   <i data-lucide="{% if empleado.is_active %}lock{% else %}unlock{% endif %}" style="width:13px;height:13px;"></i>
                 </button>
               </form>
@@ -335,8 +339,8 @@
         
         {% empty %}
         <tr>
-          <td colspan="5" class="text-center py-4" style="color:var(--txt-3);">
-            No hay empleados en esta categoría.
+          <td colspan="8" class="text-center py-4" style="color:var(--txt-3);">
+            No hay colaboradores en esta categoría. Puedes agregar uno nuevo con el botón <strong>+ Nuevo Empleado</strong>.
           </td>
         </tr>
         {% endfor %}
@@ -345,15 +349,16 @@
   </div>
 </div>
 
+<!-- Modales de Empleados Existentes -->
 {% for empleado in staff_qs %}
 <!-- Modal Editar Staff -->
 <div class="modal fade" id="modalEditarStaff{{ empleado.id }}" tabindex="-1">
   <div class="modal-dialog">
     <div class="modal-content" style="background:var(--card);border:1px solid var(--border);">
       <div class="modal-header" style="border-bottom:1px solid var(--border);">
-        <h5 class="modal-title" style="font-weight:600;font-size:15px;">
-          <i data-lucide="edit" style="width:16px;height:16px;margin-right:6px;color:var(--blue);"></i>
-          Editar Credenciales de Empleado
+        <h5 class="modal-title" style="font-weight:600;font-size:15px;display:flex;align-items:center;gap:6px;">
+          <i data-lucide="edit" style="width:16px;height:16px;color:var(--blue);"></i>
+          Editar Datos de: {{ empleado.first_name|default:empleado.username }}
         </h5>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
       </div>
@@ -372,21 +377,29 @@
             </div>
             
             <div class="col-md-6">
-              <label class="form-label">Usuario</label>
-              <div class="input-group">
-                <span class="input-group-text bg-dark border-secondary"><i data-lucide="user" style="width:14px;height:14px;"></i></span>
-                <input type="text" name="username" class="form-control" value="{{ empleado.username }}" required>
-              </div>
+              <label class="form-label">Usuario de Acceso</label>
+              <input type="text" name="username" class="form-control" value="{{ empleado.username }}" required>
             </div>
+
             <div class="col-md-6">
               <label class="form-label">Email</label>
               <input type="email" name="email" class="form-control" value="{{ empleado.email }}" required>
             </div>
+
+            <div class="col-md-6">
+              <label class="form-label">Rol en el Sistema</label>
+              <select name="rol" class="form-control">
+                <option value="staff" {% if not empleado.is_superuser %}selected{% endif %}>Personal Staff (Operaciones)</option>
+                <option value="admin" {% if empleado.is_superuser %}selected{% endif %}>Administrador General</option>
+              </select>
+            </div>
             
-            <div class="col-12 mt-3 pt-3 border-top" style="border-color:var(--border)!important;">
-              <label class="form-label text-warning"><i data-lucide="key" style="width:14px;height:14px;"></i> Cambiar Contraseña</label>
+            <div class="col-12 mt-2 pt-2 border-top" style="border-color:var(--border)!important;">
+              <label class="form-label text-warning" style="display:flex;align-items:center;gap:6px;">
+                <i data-lucide="key" style="width:14px;height:14px;"></i> Cambiar Contraseña
+              </label>
               <input type="password" name="password" class="form-control" placeholder="Dejar en blanco para mantener la actual">
-              <small class="text-muted d-block mt-1">Si escribes algo aquí, la contraseña original será sobreescrita.</small>
+              <small class="text-muted d-block mt-1">Escribe una nueva contraseña solo si deseas cambiarla.</small>
             </div>
           </div>
         </div>
@@ -404,15 +417,17 @@
   <div class="modal-dialog">
     <div class="modal-content" style="background:var(--card);border:1px solid var(--border);">
       <div class="modal-header" style="border-bottom:1px solid var(--border);">
-        <h5 class="modal-title text-danger">⚠️ Eliminar Empleado</h5>
+        <h5 class="modal-title text-danger" style="display:flex;align-items:center;gap:6px;">
+          <i data-lucide="alert-triangle" style="width:16px;height:16px;"></i> Eliminar Empleado
+        </h5>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
       </div>
       <form method="post" action="{% url 'eliminar_staff' empleado.id %}">
         {% csrf_token %}
         <div class="modal-body">
-          <p>¿Estás seguro que deseas eliminar permanentemente a <strong>{{ empleado.first_name }}</strong>?</p>
-          <div class="alert alert-danger" style="font-size:13px;">
-            <strong>Advertencia:</strong> Esta acción borrará a este empleado del sistema. <strong>Esta acción es irreversible.</strong>
+          <p>¿Estás seguro que deseas eliminar a <strong>{{ empleado.first_name|default:empleado.username }}</strong> (RUT: {{ empleado.last_name|default:"-" }})?</p>
+          <div class="alert alert-danger" style="font-size:13px;margin-bottom:0;">
+            <strong>Advertencia:</strong> Esta acción borrará la cuenta del empleado del sistema de manera definitiva.
           </div>
         </div>
         <div class="modal-footer" style="border-top:1px solid var(--border);">
@@ -427,8 +442,86 @@
 
 {% endif %}
 
+<!-- ============================================== -->
+<!-- MODAL: CREAR NUEVO EMPLEADO (ALTA DIRECTA) -->
+<!-- ============================================== -->
+<div class="modal fade" id="modalNuevoEmpleado" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content" style="background:var(--card);border:1px solid var(--border);">
+      <div class="modal-header" style="border-bottom:1px solid var(--border);">
+        <h5 class="modal-title" style="font-weight:700;display:flex;align-items:center;gap:8px;">
+          <i data-lucide="user-plus" style="width:18px;height:18px;color:var(--blue);"></i>
+          Registrar Nuevo Empleado Bark
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="post" action="{% url 'crear_staff' %}">
+        {% csrf_token %}
+        <div class="modal-body">
+          <p style="font-size:12.5px;color:var(--txt-3);margin-bottom:16px;">
+            El colaborador podrá ingresar inmediatamente al sistema usando su <strong>RUT</strong> y la contraseña asignada.
+          </p>
+          <div class="row g-3">
+            <div class="col-12">
+              <label class="form-label">Nombre Completo *</label>
+              <input type="text" name="nombre" class="form-control" placeholder="Ej: Juan Pérez" required>
+            </div>
+            
+            <div class="col-md-6">
+              <label class="form-label">RUT *</label>
+              <input type="text" name="rut" id="nuevo_staff_rut" class="form-control" placeholder="12.345.678-K" required>
+              <small style="color:var(--txt-3);font-size:11px;">Con o sin puntos ni guión</small>
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label">Rol *</label>
+              <select name="rol" class="form-control" required>
+                <option value="staff" selected>Personal Staff / Operaciones</option>
+                <option value="admin">Administrador General</option>
+              </select>
+            </div>
+
+            <div class="col-12">
+              <label class="form-label">Correo Electrónico *</label>
+              <input type="email" name="email" class="form-control" placeholder="juan.perez@maestranzabark.cl" required>
+            </div>
+
+            <div class="col-12">
+              <label class="form-label">Contraseña de Acceso *</label>
+              <input type="password" name="password" class="form-control" placeholder="••••••••" required autocomplete="new-password">
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer" style="border-top:1px solid var(--border);">
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-sm btn-primary" style="padding:6px 16px;">Crear Empleado</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
 
 {% endblock %}
+
 {% block extra_js %}
-<script>lucide.createIcons();</script>
+<script>
+lucide.createIcons();
+
+// Filtro rápido en vivo para la tabla de Staff
+const filtroInput = document.getElementById('filtroStaffInput');
+if (filtroInput) {
+  filtroInput.addEventListener('input', function() {
+    const q = this.value.toLowerCase().trim();
+    const rows = document.querySelectorAll('.staff-row');
+    rows.forEach(row => {
+      const searchData = row.getAttribute('data-search') || '';
+      if (searchData.includes(q)) {
+        row.style.display = '';
+      } else {
+        row.style.display = 'none';
+      }
+    });
+  });
+}
+</script>
 {% endblock %}

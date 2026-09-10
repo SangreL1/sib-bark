@@ -266,6 +266,36 @@
           </div>
         </div>
 
+        <!-- Factura -->
+        <div style="background:rgba(255,255,255,.01);border:1px solid var(--border);border-radius:8px;padding:16px;">
+          <h4 style="font-size:12px;font-weight:700;color:var(--txt);margin-bottom:12px;display:flex;align-items:center;gap:6px;">
+            🧾 Factura
+          </h4>
+          <div class="form-group">
+            <label class="form-label" style="font-size:10px;">Link Drive/Nube Factura</label>
+            {{ form.factura_link }}
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label class="form-label" style="font-size:10px;">Archivo Físico Factura (PDF)</label>
+            {{ form.factura_file }}
+          </div>
+        </div>
+
+        <!-- Guías de Despacho -->
+        <div style="background:rgba(255,255,255,.01);border:1px solid var(--border);border-radius:8px;padding:16px;">
+          <h4 style="font-size:12px;font-weight:700;color:var(--txt);margin-bottom:12px;display:flex;align-items:center;gap:6px;">
+            🚚 Guías de Despacho
+          </h4>
+          <div class="form-group">
+            <label class="form-label" style="font-size:10px;">Link Drive/Nube Guía(s)</label>
+            {{ form.guia_link }}
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label class="form-label" style="font-size:10px;">Archivo Físico Guía(s) (PDF)</label>
+            {{ form.guia_file }}
+          </div>
+        </div>
+
       </div>
     </div>
 

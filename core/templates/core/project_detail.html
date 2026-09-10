@@ -607,6 +607,84 @@
             </div>
           </div>
 
+          <!-- Factura -->
+          <div style="background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:8px;padding:16px;display:flex;flex-direction:column;gap:10px;justify-content:space-between;">
+            <div style="display:flex;align-items:center;justify-content:space-between;">
+              <span style="font-size:13px;font-weight:700;display:flex;align-items:center;gap:6px;">
+                🧾 Factura(s)
+              </span>
+              {% if project.factura_link or project.factura_file or project.facturas.exists %}
+                <span class="semaforo-dot green" style="width:8px;height:8px;" title="Factura disponible"></span>
+              {% else %}
+                <span class="semaforo-dot red" style="width:8px;height:8px;" title="Sin factura adjunta"></span>
+              {% endif %}
+            </div>
+            <div style="display:flex;gap:8px;">
+              {% if project.factura_link %}
+                <a href="{{ project.factura_link }}" target="_blank" class="btn btn-ghost btn-sm" style="flex:1;font-size:12px;padding:10px 12px;min-height:44px;display:inline-flex;align-items:center;justify-content:center;">
+                  <i data-lucide="link" style="width:14px;height:14px;margin-right:4px;"></i> Link
+                </a>
+              {% else %}
+                <span style="font-size:12px;color:var(--txt-3);flex:1;text-align:center;padding:12px 0;border:1px dashed var(--border);border-radius:6px;">Sin link</span>
+              {% endif %}
+              {% if project.factura_file %}
+                <a href="{{ project.factura_file.url }}" target="_blank" class="btn btn-ghost btn-sm" style="flex:1;font-size:12px;padding:10px 12px;min-height:44px;display:inline-flex;align-items:center;justify-content:center;background:rgba(139,92,246,.15);border-color:rgba(139,92,246,.3);color:var(--txt);">
+                  <i data-lucide="download" style="width:14px;height:14px;margin-right:4px;"></i> Archivo
+                </a>
+              {% elif project.facturas.exists %}
+                {% with primera_factura=project.facturas.first %}
+                  {% if primera_factura.archivo %}
+                    <a href="{{ primera_factura.archivo.url }}" target="_blank" class="btn btn-ghost btn-sm" style="flex:1;font-size:12px;padding:10px 12px;min-height:44px;display:inline-flex;align-items:center;justify-content:center;background:rgba(139,92,246,.15);border-color:rgba(139,92,246,.3);color:var(--txt);">
+                      <i data-lucide="download" style="width:14px;height:14px;margin-right:4px;"></i> Fact. #{{ primera_factura.numero_factura }}
+                    </a>
+                  {% elif primera_factura.url_externa %}
+                    <a href="{{ primera_factura.url_externa }}" target="_blank" class="btn btn-ghost btn-sm" style="flex:1;font-size:12px;padding:10px 12px;min-height:44px;display:inline-flex;align-items:center;justify-content:center;">
+                      <i data-lucide="link" style="width:14px;height:14px;margin-right:4px;"></i> Fact. #{{ primera_factura.numero_factura }}
+                    </a>
+                  {% else %}
+                    <span style="font-size:12px;color:var(--txt-3);flex:1;text-align:center;padding:12px 0;border:1px dashed var(--border);border-radius:6px;">#{{ primera_factura.numero_factura }}</span>
+                  {% endif %}
+                {% endwith %}
+              {% else %}
+                <span style="font-size:12px;color:var(--txt-3);flex:1;text-align:center;padding:12px 0;border:1px dashed var(--border);border-radius:6px;">Sin archivo</span>
+              {% endif %}
+            </div>
+          </div>
+
+          <!-- Guías de Despacho -->
+          <div style="background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:8px;padding:16px;display:flex;flex-direction:column;gap:10px;justify-content:space-between;">
+            <div style="display:flex;align-items:center;justify-content:space-between;">
+              <span style="font-size:13px;font-weight:700;display:flex;align-items:center;gap:6px;">
+                🚚 Guía(s) de Despacho
+              </span>
+              {% if project.guia_link or project.guia_file or entregas_con_guia %}
+                <span class="semaforo-dot green" style="width:8px;height:8px;" title="Guía disponible"></span>
+              {% else %}
+                <span class="semaforo-dot red" style="width:8px;height:8px;" title="Sin guía adjunta"></span>
+              {% endif %}
+            </div>
+            <div style="display:flex;gap:8px;">
+              {% if project.guia_link %}
+                <a href="{{ project.guia_link }}" target="_blank" class="btn btn-ghost btn-sm" style="flex:1;font-size:12px;padding:10px 12px;min-height:44px;display:inline-flex;align-items:center;justify-content:center;">
+                  <i data-lucide="link" style="width:14px;height:14px;margin-right:4px;"></i> Link
+                </a>
+              {% else %}
+                <span style="font-size:12px;color:var(--txt-3);flex:1;text-align:center;padding:12px 0;border:1px dashed var(--border);border-radius:6px;">Sin link</span>
+              {% endif %}
+              {% if project.guia_file %}
+                <a href="{{ project.guia_file.url }}" target="_blank" class="btn btn-ghost btn-sm" style="flex:1;font-size:12px;padding:10px 12px;min-height:44px;display:inline-flex;align-items:center;justify-content:center;background:rgba(139,92,246,.15);border-color:rgba(139,92,246,.3);color:var(--txt);">
+                  <i data-lucide="download" style="width:14px;height:14px;margin-right:4px;"></i> Archivo
+                </a>
+              {% elif project.entregas.first and project.entregas.first.guia_file %}
+                <a href="{{ project.entregas.first.guia_file.url }}" target="_blank" class="btn btn-ghost btn-sm" style="flex:1;font-size:12px;padding:10px 12px;min-height:44px;display:inline-flex;align-items:center;justify-content:center;background:rgba(139,92,246,.15);border-color:rgba(139,92,246,.3);color:var(--txt);">
+                  <i data-lucide="download" style="width:14px;height:14px;margin-right:4px;"></i> Guía
+                </a>
+              {% else %}
+                <span style="font-size:12px;color:var(--txt-3);flex:1;text-align:center;padding:12px 0;border:1px dashed var(--border);border-radius:6px;">Sin archivo</span>
+              {% endif %}
+            </div>
+          </div>
+
         </div>
         <div style="margin-top:16px;text-align:right;">
           <a href="{% url 'oc_edit' project.numero_oc %}" class="btn btn-ghost btn-sm" style="font-size:12px;min-height:38px;padding:8px 12px;display:inline-flex;align-items:center;">

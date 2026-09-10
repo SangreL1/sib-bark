@@ -51,6 +51,8 @@ class OrdenCompra(models.Model):
     excel_link = models.URLField(max_length=1000, blank=True, null=True, verbose_name="Link Excel")
     dossier_link = models.URLField(max_length=1000, blank=True, null=True, verbose_name="Link Dossier Calidad")
     cotizacion_link = models.URLField(max_length=1000, blank=True, null=True, verbose_name="Link Cotización")
+    factura_link = models.URLField(max_length=1000, blank=True, null=True, verbose_name="Link Factura (PDF)")
+    guia_link = models.URLField(max_length=1000, blank=True, null=True, verbose_name="Link Guía de Despacho (PDF)")
 
     # Physical file uploads (in addition to links, satisfying user request)
     oc_file = models.FileField(upload_to='ordenes_compra/oc/', blank=True, null=True, verbose_name="Archivo OC (PDF)")
@@ -59,6 +61,8 @@ class OrdenCompra(models.Model):
     excel_file = models.FileField(upload_to='ordenes_compra/excel/', blank=True, null=True, verbose_name="Archivo Excel")
     dossier_file = models.FileField(upload_to='ordenes_compra/dossiers/', blank=True, null=True, verbose_name="Archivo Dossier")
     cotizacion_file = models.FileField(upload_to='ordenes_compra/cotizaciones/', blank=True, null=True, verbose_name="Archivo Cotización")
+    factura_file = models.FileField(upload_to='ordenes_compra/facturas/', blank=True, null=True, verbose_name="Archivo Factura (PDF)")
+    guia_file = models.FileField(upload_to='ordenes_compra/guias/', blank=True, null=True, verbose_name="Archivo Guía de Despacho (PDF)")
 
     # Audit
     creado_en = models.DateTimeField(auto_now_add=True, null=True)

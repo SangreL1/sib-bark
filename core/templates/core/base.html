@@ -134,9 +134,9 @@
     <div class="collapse navbar-collapse" id="navbarSupportedContent">
       
       <!-- Search Form inside Navbar -->
-      <form action="{% url 'search' %}" method="GET" class="header-search my-2 my-lg-0 me-auto position-relative" style="max-width: 420px; width: 100%;">
+      <form action="{% url 'search' %}" method="GET" class="header-search my-2 my-lg-0 me-auto position-relative" style="max-width: 320px; width: 100%;">
         <i data-lucide="search" class="si"></i>
-        <input type="text" name="q" placeholder="Buscar FMR, OC, cliente, guía, factura…" value="{{ q|default:'' }}" autocomplete="off">
+        <input type="text" name="q" placeholder="Buscar FMR, OC, cliente, guía..." value="{{ q|default:'' }}" autocomplete="off">
       </form>
 
       <!-- Navigation Links -->
@@ -147,13 +147,18 @@
           </a>
         </li>
         <li class="nav-item">
-          <a href="{% url 'oc_create' %}" class="nav-link {% if request.resolver_match.url_name == 'oc_create' %}active{% endif %}">
+          <a href="{% url 'oc_create' %}" class="nav-link {% if request.resolver_match.url_name == 'oc_create' %}active{% endif %}" style="color:var(--blue);font-weight:600;">
             <i data-lucide="plus-circle" style="width:15px;height:15px;"></i> Nueva OC
           </a>
         </li>
         <li class="nav-item">
           <a href="{% url 'despachos_list' %}" class="nav-link {% if request.resolver_match.url_name == 'despachos_list' %}active{% endif %}">
             <i data-lucide="truck" style="width:15px;height:15px;"></i> Despachos
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="{% url 'cotizacion_list' %}" class="nav-link {% if 'cotizacion' in request.resolver_match.url_name %}active{% endif %}">
+            <i data-lucide="file-text" style="width:15px;height:15px;"></i> Cotizaciones
           </a>
         </li>
         <li class="nav-item">
@@ -166,21 +171,72 @@
             <i data-lucide="receipt" style="width:15px;height:15px;"></i> Costos
           </a>
         </li>
+
         {% if user.is_staff %}
         <li class="nav-item">
-          <a href="{% url 'oc_clientes_bandeja' %}" class="nav-link {% if request.resolver_match.url_name == 'oc_clientes_bandeja' or request.resolver_match.url_name == 'solicitudes_acceso_lista' or request.resolver_match.url_name == 'oc_clientes_config' %}active{% endif %}" style="color:#93c5fd;">
+          <a href="{% url 'oc_clientes_bandeja' %}" class="nav-link {% if 'oc_cliente' in request.resolver_match.url_name and 'accesos' not in request.path %}active{% endif %}" style="color:#93c5fd;">
             <i data-lucide="inbox" style="width:15px;height:15px;"></i> OC Clientes
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="{% url 'gestion_usuarios' %}" class="nav-link {% if request.resolver_match.url_name == 'gestion_usuarios' or request.resolver_match.url_name == 'solicitudes_acceso_lista' %}active{% endif %}" style="color:#a7f3d0;">
+            <i data-lucide="users" style="width:15px;height:15px;"></i> Usuarios
           </a>
         </li>
         {% endif %}
 
       </ul>
 
-      <!-- User Controls -->
-      <div class="nav-user ms-lg-3 d-flex align-items-center gap-2">
-        <span class="d-none d-lg-inline-block"><i data-lucide="user" style="width:15px;height:15px;color:var(--txt-2);"></i></span>
-        <strong style="font-size: 13px;">{{ request.user.username }}</strong>
-        <a href="{% url 'logout' %}" class="btn btn-sm btn-logout d-inline-flex align-items-center justify-content-center">Salir</a>
+      <!-- User Profile & Session Controls -->
+      <div class="nav-user ms-lg-2 dropdown">
+        <button class="btn btn-sm btn-ghost dropdown-toggle d-flex align-items-center gap-2" type="button" data-bs-toggle="dropdown" aria-expanded="false" style="border:1px solid var(--border);border-radius:20px;padding:4px 12px;background:rgba(255,255,255,.04);">
+          <div style="width:24px;height:24px;border-radius:50%;background:rgba(59,130,246,.2);color:var(--blue);display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;">
+            {{ request.user.first_name|default:request.user.username|slice:":1"|upper }}
+          </div>
+          <strong style="font-size: 13px;max-width:110px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+            {{ request.user.first_name|default:request.user.username }}
+          </strong>
+          {% if request.user.is_superuser %}
+            <span class="badge" style="background:#4338ca;font-size:9px;padding:2px 6px;">Admin</span>
+          {% endif %}
+        </button>
+
+        <ul class="dropdown-menu dropdown-menu-end shadow-lg" style="background:#111827;border:1px solid var(--border);border-radius:10px;padding:8px;min-width:210px;margin-top:8px;">
+          <li class="px-2 py-1 mb-1" style="border-bottom:1px solid var(--border);">
+            <div style="font-size:12.5px;font-weight:700;color:var(--txt);">{{ request.user.first_name|default:request.user.username }}</div>
+            <div style="font-size:11px;color:var(--txt-3);font-family:monospace;">RUT: {{ request.user.last_name|default:"Sin RUT" }}</div>
+          </li>
+          {% if user.is_staff %}
+          <li>
+            <a class="dropdown-item d-flex align-items-center gap-2 py-2" href="{% url 'gestion_usuarios' %}" style="font-size:13px;border-radius:6px;color:var(--txt);">
+              <i data-lucide="users-round" style="width:14px;height:14px;color:var(--blue);"></i> Gestión de Usuarios
+            </a>
+          </li>
+          <li>
+            <a class="dropdown-item d-flex align-items-center gap-2 py-2" href="{% url 'import_data' %}" style="font-size:13px;border-radius:6px;color:var(--txt);">
+              <i data-lucide="upload-cloud" style="width:14px;height:14px;color:var(--amber);"></i> Importar Datos
+            </a>
+          </li>
+          <li>
+            <a class="dropdown-item d-flex align-items-center gap-2 py-2" href="{% url 'oc_clientes_config' %}" style="font-size:13px;border-radius:6px;color:var(--txt);">
+              <i data-lucide="settings" style="width:14px;height:14px;color:var(--txt-2);"></i> Configuración OC
+            </a>
+          </li>
+          {% if user.is_superuser %}
+          <li>
+            <a class="dropdown-item d-flex align-items-center gap-2 py-2" href="/admin/" target="_blank" style="font-size:13px;border-radius:6px;color:var(--txt);">
+              <i data-lucide="shield" style="width:14px;height:14px;color:#a855f7;"></i> Django Admin
+            </a>
+          </li>
+          {% endif %}
+          <li><hr class="dropdown-divider" style="border-color:var(--border);"></li>
+          {% endif %}
+          <li>
+            <a class="dropdown-item d-flex align-items-center gap-2 py-2 text-danger" href="{% url 'logout' %}" style="font-size:13px;border-radius:6px;">
+              <i data-lucide="log-out" style="width:14px;height:14px;"></i> Cerrar Sesión
+            </a>
+          </li>
+        </ul>
       </div>
       
     </div>

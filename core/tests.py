@@ -1,5 +1,6 @@
 from django.test import TestCase
 from django.urls import reverse
+from django.contrib.auth.models import User
 from decimal import Decimal
 from datetime import date
 from .models import OrdenCompra, Costo, FMR, Entrega
@@ -358,5 +359,95 @@ class BarkModelsTestCase(TestCase):
         res_excel = self.client.get(url_excel)
         self.assertEqual(res_excel.status_code, 200)
         self.assertIn('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', res_excel['Content-Type'])
+
+
+class UsuariosYRUTTests(TestCase):
+    def setUp(self):
+        self.admin = User.objects.create_superuser(
+            username='superadmin',
+            email='admin@bark.cl',
+            password='Password123!',
+            first_name='Admin',
+            last_name='11.111.111-1'
+        )
+        self.empleado = User.objects.create_user(
+            username='151234567',
+            email='empleado@bark.cl',
+            password='Password123!',
+            first_name='Carlos',
+            last_name='15.123.456-7',
+            is_staff=True,
+            is_active=True
+        )
+
+    def test_login_con_rut_varios_formatos(self):
+        # 1. Login con RUT formateado con puntos y guion
+        res = self.client.post(reverse('login'), {
+            'username': '15.123.456-7',
+            'password': 'Password123!'
+        })
+        self.assertEqual(res.status_code, 302)
+        self.client.logout()
+
+        # 2. Login con RUT sin puntos
+        res = self.client.post(reverse('login'), {
+            'username': '15123456-7',
+            'password': 'Password123!'
+        })
+        self.assertEqual(res.status_code, 302)
+        self.client.logout()
+
+        # 3. Login con RUT sin guion ni puntos
+        res = self.client.post(reverse('login'), {
+            'username': '151234567',
+            'password': 'Password123!'
+        })
+        self.assertEqual(res.status_code, 302)
+        self.client.logout()
+
+        # 4. Login con fallback username clásico (superadmin)
+        res = self.client.post(reverse('login'), {
+            'username': 'superadmin',
+            'password': 'Password123!'
+        })
+        self.assertEqual(res.status_code, 302)
+
+    def test_crear_y_eliminar_staff_sin_error_404(self):
+        self.client.login(username='superadmin', password='Password123!')
+
+        # Crear nuevo empleado desde el panel
+        res_crear = self.client.post(reverse('crear_staff'), {
+            'nombre': 'Esteban Morales',
+            'rut': '16.234.567-2',
+            'email': 'esteban@bark.cl',
+            'password': 'SecurePassword123!',
+            'rol': 'staff'
+        })
+        self.assertEqual(res_crear.status_code, 302)
+        nuevo_user = User.objects.filter(last_name='16.234.567-2').first()
+        self.assertIsNotNone(nuevo_user)
+        self.assertTrue(nuevo_user.is_staff)
+        self.assertTrue(nuevo_user.is_active)
+
+        # Eliminar el empleado vía POST (no debe dar 404 ni bucle de redirección)
+        res_eliminar = self.client.post(reverse('eliminar_staff', kwargs={'user_id': nuevo_user.id}))
+        self.assertEqual(res_eliminar.status_code, 302)
+        self.assertFalse(User.objects.filter(id=nuevo_user.id).exists())
+
+        # Probar que una petición posterior a esa URL no arroje 404
+        res_repetido = self.client.get(reverse('eliminar_staff', kwargs={'user_id': nuevo_user.id}))
+        self.assertEqual(res_repetido.status_code, 302)
+
+    def test_respaldos_factura_y_guia_orden_compra(self):
+        oc = OrdenCompra.objects.create(
+            numero_oc="OC-TEST-RESPALDOS-001",
+            cliente="Minera Escondida",
+            valor_total=Decimal("5000000"),
+            factura_link="https://drive.google.com/factura/123",
+            guia_link="https://drive.google.com/guia/456"
+        )
+        self.assertEqual(oc.factura_link, "https://drive.google.com/factura/123")
+        self.assertEqual(oc.guia_link, "https://drive.google.com/guia/456")
+
 
 

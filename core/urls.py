@@ -107,5 +107,11 @@ urlpatterns = [
     path('oc-clientes/accesos/staff/<int:user_id>/bloquear/', views.bloquear_staff, name='bloquear_staff'),
     path('oc-clientes/accesos/staff/<int:user_id>/eliminar/', views.eliminar_staff, name='eliminar_staff'),
     
+    # ══════════════════════════════════════════════════════════════════════════
+    # GESTIÓN DE USUARIOS Y PERSONAL (Acceso directo)
+    # ══════════════════════════════════════════════════════════════════════════
+    path('usuarios/', views.solicitudes_acceso_lista, name='gestion_usuarios'),
+    path('usuarios/staff/nuevo/', views.crear_staff, name='crear_staff'),
+
     path('oc-clientes/configuracion/', views.oc_clientes_config, name='oc_clientes_config'),
 ]

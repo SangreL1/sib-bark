@@ -149,14 +149,25 @@
     <form method="POST">
       {% csrf_token %}
       <div class="form-group">
-        <label class="form-label">Usuario</label>
-        <input type="text" name="username" class="form-control" placeholder="Ingresa tu usuario" autofocus autocomplete="username" required>
+        <label class="form-label" style="display:flex;align-items:center;gap:6px;">
+          <i data-lucide="badge-check" style="width:15px;height:15px;color:#60a5fa;"></i> RUT
+        </label>
+        <div style="position:relative;">
+          <input type="text" name="username" id="login_rut" class="form-control" placeholder="12.345.678-K" autofocus autocomplete="username" required style="font-family:monospace;font-size:15px;letter-spacing:0.5px;">
+        </div>
+        <small style="color:var(--txt-3);font-size:11px;margin-top:4px;display:block;">
+          Ingresa tu RUT (ej: 12.345.678-9 o sin puntos)
+        </small>
       </div>
-      <div class="form-group" style="margin-bottom: 26px;">
-        <label class="form-label">Contraseña</label>
+      <div class="form-group" style="margin-bottom: 24px;">
+        <label class="form-label" style="display:flex;align-items:center;gap:6px;">
+          <i data-lucide="lock" style="width:15px;height:15px;color:#60a5fa;"></i> Contraseña
+        </label>
         <input type="password" name="password" class="form-control" placeholder="••••••••" autocomplete="current-password" required>
       </div>
-      <button type="submit" class="login-btn">Ingresar al Sistema</button>
+      <button type="submit" class="login-btn" style="display:flex;align-items:center;justify-content:center;gap:8px;">
+        <i data-lucide="log-in" style="width:16px;height:16px;"></i> Ingresar al Sistema
+      </button>
     </form>
 
     <!-- Botón para abrir el modal de registro -->
@@ -355,8 +366,29 @@ rutInput.addEventListener('input', function() {
           rutStatus.className = 'rut-status err';
         }
       });
-  }, 500);
-});
+// Auto-formateo del RUT de login al escribir o salir del foco
+const loginRutInput = document.getElementById('login_rut');
+if (loginRutInput) {
+  function formatRutString(rut) {
+    let clean = rut.replace(/[^0-9kK]/g, '').toUpperCase();
+    if (clean.length < 2) return clean;
+    let cuerpo = clean.slice(0, -1);
+    let dv = clean.slice(-1);
+    let cuerpoFmt = '';
+    for (let i = cuerpo.length - 1, j = 0; i >= 0; i--, j++) {
+      if (j > 0 && j % 3 === 0) cuerpoFmt = '.' + cuerpoFmt;
+      cuerpoFmt = cuerpo[i] + cuerpoFmt;
+    }
+    return cuerpoFmt + '-' + dv;
+  }
+
+  loginRutInput.addEventListener('blur', function() {
+    let val = this.value.trim();
+    if (val.length >= 7 && !val.includes('.')) {
+      this.value = formatRutString(val);
+    }
+  });
+}
 </script>
 </body>
 </html>

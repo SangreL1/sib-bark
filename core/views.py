@@ -182,36 +182,56 @@ def login_view(request):
                 registro_datos = {}  # Limpiar el formulario
 
         else:
-            # ── Login normal ────────────────────────────────────────────────
-            from .utils_seguridad import formatear_rut
-            username = request.POST.get('username', '').strip()
+            # ── Login por RUT y Contraseña ──────────────────────────────────
+            from .utils_seguridad import formatear_rut, _limpiar_rut
+            from django.contrib.auth.models import User
+            from .models import PerfilClienteExterno
+
+            rut_raw = request.POST.get('rut', request.POST.get('username', '')).strip()
             password = request.POST.get('password', '').strip()
-            
-            # Permitir login con RUT (para PerfilClienteExterno y para Staff que tienen RUT en last_name)
-            user_to_auth = username
-            try:
-                rut_fmt = formatear_rut(username)
+
+            user_to_auth = rut_raw
+            rut_clean = _limpiar_rut(rut_raw) if rut_raw else ''
+            rut_fmt = formatear_rut(rut_raw) if rut_clean else ''
+
+            # 1. Intentar encontrar por RUT en PerfilClienteExterno (Clientes B2B)
+            perfil = None
+            if rut_fmt:
+                perfil = PerfilClienteExterno.objects.filter(rut=rut_fmt).first()
+            if not perfil and rut_clean:
+                perfil = PerfilClienteExterno.objects.filter(rut__iexact=rut_clean).first()
+
+            if perfil:
+                user_to_auth = perfil.user.username
+            else:
+                # 2. Intentar encontrar por RUT en Usuarios Staff/Admin (guardado en last_name o username)
+                staff_user = None
                 if rut_fmt:
-                    perfil = PerfilClienteExterno.objects.filter(rut=rut_fmt).first()
-                    if perfil:
-                        user_to_auth = perfil.user.username
-                    else:
-                        from django.contrib.auth.models import User
-                        staff_user = User.objects.filter(last_name=rut_fmt).first()
-                        if staff_user:
-                            user_to_auth = staff_user.username
-            except Exception:
-                pass
-                
+                    staff_user = User.objects.filter(last_name__iexact=rut_fmt).first()
+                if not staff_user and rut_clean:
+                    staff_user = (
+                        User.objects.filter(last_name__iexact=rut_clean).first()
+                        or User.objects.filter(username__iexact=rut_clean).first()
+                        or User.objects.filter(username__iexact=rut_fmt).first()
+                    )
+                if not staff_user and rut_raw:
+                    # Soporte de contingencia para username tradicional (ej. admin) o correo
+                    staff_user = User.objects.filter(username__iexact=rut_raw).first()
+                    if not staff_user and '@' in rut_raw:
+                        staff_user = User.objects.filter(email__iexact=rut_raw).first()
+
+                if staff_user:
+                    user_to_auth = staff_user.username
+
             user = authenticate(request, username=user_to_auth, password=password)
             if user:
                 login(request, user)
-                # Si un cliente entra por aqui, redirigirlo a SU portal
+                # Si un cliente entra por aquí, redirigirlo a su portal
                 if not user.is_staff and hasattr(user, 'perfil_cliente_externo'):
                     return redirect('portal_dashboard')
                 return redirect(request.GET.get('next', 'project_list'))
             else:
-                messages.error(request, 'Usuario o contraseña incorrectos.')
+                messages.error(request, 'RUT o contraseña incorrectos.')
 
     return render(request, 'core/login.html', {
         'registro_errores': registro_errores,
@@ -3300,16 +3320,30 @@ def solicitudes_acceso_lista(request):
     }
     
     # ── Empleados Staff ──
-    staff_estado = request.GET.get('staff_estado', 'pendiente')  # pendiente (is_active=False) o aprobado (is_active=True)
-    staff_qs = User.objects.filter(is_staff=True, is_superuser=False).order_by('-date_joined')
+    # Por defecto mostrar activos, a menos que haya pendientes
+    pendientes_count = User.objects.filter(is_staff=True, is_active=False).count()
+    default_staff_estado = 'pendiente' if pendientes_count > 0 else 'aprobado'
+    staff_estado = request.GET.get('staff_estado', default_staff_estado)
+    q_staff = request.GET.get('q_staff', '').strip()
+
+    staff_qs = User.objects.filter(is_staff=True).order_by('-date_joined')
     if staff_estado == 'pendiente':
         staff_qs = staff_qs.filter(is_active=False)
-    else:
+    elif staff_estado == 'aprobado':
         staff_qs = staff_qs.filter(is_active=True)
+
+    if q_staff:
+        staff_qs = staff_qs.filter(
+            Q(first_name__icontains=q_staff) |
+            Q(last_name__icontains=q_staff) |
+            Q(username__icontains=q_staff) |
+            Q(email__icontains=q_staff)
+        )
         
     staff_contadores = {
-        'pendiente': User.objects.filter(is_staff=True, is_superuser=False, is_active=False).count(),
-        'aprobado': User.objects.filter(is_staff=True, is_superuser=False, is_active=True).count(),
+        'pendiente': pendientes_count,
+        'aprobado': User.objects.filter(is_staff=True, is_active=True).count(),
+        'todos': User.objects.filter(is_staff=True).count(),
     }
 
     return render(request, 'core/solicitudes_acceso_lista.html', {
@@ -3319,6 +3353,7 @@ def solicitudes_acceso_lista(request):
         'staff_qs': staff_qs,
         'staff_estado': staff_estado,
         'staff_contadores': staff_contadores,
+        'q_staff': q_staff,
     })
 
 
@@ -3351,8 +3386,8 @@ def aprobar_staff(request, user_id):
         from .emails import email_staff_acceso_aprobado
         email_staff_acceso_aprobado(empleado)
         messages.success(request, f'Acceso de Empleado {empleado.first_name} APROBADO y cuenta activada.')
-    # Preserve the active tab
-    return redirect(request.build_absolute_uri() if 'staff_estado' in request.META.get('HTTP_REFERER', '') else '/oc-clientes/accesos/?tab=staff')
+    # Redirección segura preservando estado
+    return _redirect_staff_referer(request)
 
 
 # ── Staff Bark: Rechazar Acceso Cliente ──────────────────────────────────────
@@ -3434,46 +3469,129 @@ def editar_cliente(request, perfil_id):
     return redirect('solicitudes_acceso_lista')
 
 
-# ── Staff Bark: Gestionar Empleados Existentes ────────────────────────AAAAAA
+def _redirect_staff_referer(request, default_tab='staff'):
+    """Retorna una redirección segura a la vista de gestión de usuarios preservando pestañas y filtros."""
+    referer = request.META.get('HTTP_REFERER', '')
+    # Si viene de una pantalla válida que no sea una acción destructiva/transaccional
+    if referer and not any(x in referer for x in ['/eliminar/', '/bloquear/', '/aprobar/']):
+        return redirect(referer)
+    
+    estado = request.GET.get('staff_estado') or ('aprobado' if default_tab == 'staff' else '')
+    if estado:
+        return redirect(f'/usuarios/?tab={default_tab}&staff_estado={estado}')
+    return redirect(f'/usuarios/?tab={default_tab}')
+
+
+@requiere_staff_bark
+def crear_staff(request):
+    """Permite al administrador crear un empleado directamente desde el panel."""
+    from django.contrib.auth.models import User
+    from .utils_seguridad import validar_rut_chileno, formatear_rut, _limpiar_rut
+
+    if request.method == 'POST':
+        nombre = request.POST.get('nombre', '').strip()
+        rut = request.POST.get('rut', '').strip()
+        email = request.POST.get('email', '').strip()
+        password = request.POST.get('password', '').strip()
+        rol = request.POST.get('rol', 'staff') # 'admin' o 'staff'
+
+        if not nombre or not rut or not email or not password:
+            messages.error(request, 'Todos los campos marcados con (*) son obligatorios.')
+            return _redirect_staff_referer(request)
+
+        if not validar_rut_chileno(rut):
+            messages.error(request, 'El RUT ingresado no es válido (revisa el dígito verificador).')
+            return _redirect_staff_referer(request)
+
+        rut_fmt = formatear_rut(rut)
+        rut_clean = _limpiar_rut(rut).lower()
+
+        # Verificar unicidad por RUT o Email
+        if User.objects.filter(last_name=rut_fmt).exists() or User.objects.filter(username=rut_clean).exists():
+            messages.error(request, f'Ya existe un usuario registrado con el RUT {rut_fmt}.')
+            return _redirect_staff_referer(request)
+
+        if User.objects.filter(email=email).exists():
+            messages.error(request, f'Ya existe un usuario registrado con el correo {email}.')
+            return _redirect_staff_referer(request)
+
+        # Generar username único a partir del RUT limpio
+        username = rut_clean
+        counter = 1
+        base_user = username
+        while User.objects.filter(username=username).exists():
+            username = f"{base_user}_{counter}"
+            counter += 1
+
+        is_superuser = (rol == 'admin')
+        User.objects.create_user(
+            username=username,
+            email=email,
+            password=password,
+            first_name=nombre,
+            last_name=rut_fmt,
+            is_staff=True,
+            is_superuser=is_superuser,
+            is_active=True
+        )
+        messages.success(request, f'Empleado {nombre} ({rut_fmt}) creado exitosamente con acceso activo.')
+
+    return _redirect_staff_referer(request)
+
+
+# ── Staff Bark: Gestionar Empleados Existentes ────────────────────────
 
 @requiere_staff_bark
 def bloquear_staff(request, user_id):
     """Bloquea o desbloquea (desactiva el User) a un empleado aprobado."""
     from django.contrib.auth.models import User
-    empleado = get_object_or_404(User, id=user_id, is_staff=True)
+    empleado = User.objects.filter(id=user_id, is_staff=True).first()
+    if not empleado:
+        messages.error(request, 'El empleado especificado no existe.')
+        return _redirect_staff_referer(request)
+
     if request.method == 'POST':
         empleado.is_active = not empleado.is_active
         empleado.save()
         estado = "DESBLOQUEADO" if empleado.is_active else "BLOQUEADO"
-        messages.success(request, f'Acceso de Empleado {empleado.first_name} {estado} correctamente.')
-    return redirect(request.build_absolute_uri() if 'staff_estado' in request.META.get('HTTP_REFERER', '') else '/oc-clientes/accesos/?tab=staff')
+        messages.success(request, f'Acceso de empleado {empleado.first_name} {estado} correctamente.')
+    return _redirect_staff_referer(request)
 
 @requiere_staff_bark
 def eliminar_staff(request, user_id):
-    """Elimina definitivamente un empleado del sistema."""
+    """Elimina definitivamente un empleado del sistema de forma segura."""
     from django.contrib.auth.models import User
-    empleado = get_object_or_404(User, id=user_id, is_staff=True)
+    empleado = User.objects.filter(id=user_id, is_staff=True).first()
+    if not empleado:
+        messages.info(request, 'El empleado ya no existe en el sistema o fue eliminado previamente.')
+        return _redirect_staff_referer(request)
+
     # Evitar que el admin se borre a sí mismo
     if empleado.id == request.user.id:
         messages.error(request, 'No puedes eliminar tu propia cuenta activamente en uso.')
-        return redirect(request.build_absolute_uri() if 'staff_estado' in request.META.get('HTTP_REFERER', '') else '/oc-clientes/accesos/?tab=staff')
+        return _redirect_staff_referer(request)
         
     if request.method == 'POST':
         nombre = empleado.first_name or empleado.username
         empleado.delete()
         messages.success(request, f'El empleado {nombre} ha sido eliminado del sistema.')
-    return redirect(request.build_absolute_uri() if 'staff_estado' in request.META.get('HTTP_REFERER', '') else '/oc-clientes/accesos/?tab=staff')
+    return _redirect_staff_referer(request)
 
 @requiere_staff_bark
 def editar_staff(request, user_id):
     """Permite editar credenciales y datos de un empleado (Staff)."""
     from django.contrib.auth.models import User
-    empleado = get_object_or_404(User, id=user_id, is_staff=True)
+    empleado = User.objects.filter(id=user_id, is_staff=True).first()
+    if not empleado:
+        messages.error(request, 'El empleado especificado no existe.')
+        return _redirect_staff_referer(request)
+
     if request.method == 'POST':
         username = request.POST.get('username', '').strip()
         email = request.POST.get('email', '').strip()
         first_name = request.POST.get('first_name', '').strip()
         rut = request.POST.get('rut', '').strip()
+        rol = request.POST.get('rol', '')
         password = request.POST.get('password', '').strip()
         from .utils_seguridad import validar_rut_chileno, formatear_rut
 
@@ -3486,22 +3604,24 @@ def editar_staff(request, user_id):
             if rut:
                 if not validar_rut_chileno(rut):
                     messages.error(request, 'El RUT ingresado no es válido (revisa el dígito verificador).')
-                    return redirect(request.build_absolute_uri() if 'staff_estado' in request.META.get('HTTP_REFERER', '') else '/oc-clientes/accesos/?tab=staff')
+                    return _redirect_staff_referer(request)
                 rut_fmt = formatear_rut(rut)
                 if User.objects.filter(last_name=rut_fmt).exclude(id=empleado.id).exists():
                     messages.error(request, 'Este RUT ya se encuentra registrado para otro empleado.')
-                    return redirect(request.build_absolute_uri() if 'staff_estado' in request.META.get('HTTP_REFERER', '') else '/oc-clientes/accesos/?tab=staff')
+                    return _redirect_staff_referer(request)
 
             empleado.username = username
             empleado.email = email
             empleado.first_name = first_name
             empleado.last_name = rut_fmt
+            if rol:
+                empleado.is_superuser = (rol == 'admin')
             if password:
                 empleado.set_password(password)
             empleado.save()
             messages.success(request, f'Datos del empleado {first_name} actualizados correctamente.')
             
-    return redirect(request.build_absolute_uri() if 'staff_estado' in request.META.get('HTTP_REFERER', '') else '/oc-clientes/accesos/?tab=staff')
+    return _redirect_staff_referer(request)
 
 
 # ── Staff Bark: Configuración de Correos ─────────────────────────────────────

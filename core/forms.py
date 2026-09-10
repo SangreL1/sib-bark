@@ -21,6 +21,8 @@ class OrdenCompraForm(forms.ModelForm):
             'excel_link', 'excel_file',
             'dossier_link', 'dossier_file',
             'fmr_link', 'fmr_file',
+            'factura_link', 'factura_file',
+            'guia_link', 'guia_file',
         ]
         widgets = {
             'numero_oc': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej. D3MC - F-2-03528-FLD-01/D3MC104397'}),
@@ -46,6 +48,8 @@ class OrdenCompraForm(forms.ModelForm):
             'excel_link': forms.URLInput(attrs={'class': 'form-control', 'placeholder': 'https://drive.google.com/...'}),
             'dossier_link': forms.URLInput(attrs={'class': 'form-control', 'placeholder': 'https://drive.google.com/...'}),
             'fmr_link': forms.URLInput(attrs={'class': 'form-control', 'placeholder': 'https://drive.google.com/...'}),
+            'factura_link': forms.URLInput(attrs={'class': 'form-control', 'placeholder': 'https://drive.google.com/...'}),
+            'guia_link': forms.URLInput(attrs={'class': 'form-control', 'placeholder': 'https://drive.google.com/...'}),
             
             # Files
             'oc_file': forms.ClearableFileInput(attrs={'class': 'form-control'}),
@@ -54,6 +58,8 @@ class OrdenCompraForm(forms.ModelForm):
             'excel_file': forms.ClearableFileInput(attrs={'class': 'form-control'}),
             'dossier_file': forms.ClearableFileInput(attrs={'class': 'form-control'}),
             'fmr_file': forms.ClearableFileInput(attrs={'class': 'form-control'}),
+            'factura_file': forms.ClearableFileInput(attrs={'class': 'form-control'}),
+            'guia_file': forms.ClearableFileInput(attrs={'class': 'form-control'}),
         }
         labels = {
             'numero_oc': 'Número de OC',
@@ -65,6 +71,8 @@ class OrdenCompraForm(forms.ModelForm):
             'excel_file': 'Subir Excel',
             'dossier_file': 'Subir Dossier de Calidad',
             'fmr_file': 'Subir FMR Adjunto',
+            'factura_file': 'Subir Factura (PDF)',
+            'guia_file': 'Subir Guía de Despacho (PDF)',
         }
 
 
